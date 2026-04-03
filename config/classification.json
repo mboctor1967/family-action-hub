@@ -1,0 +1,164 @@
+{
+  "version": 2,
+  "description": "Email classification rules for the BOCTOR Family Hub. Edit this file to tune what the AI considers actionable vs noise.",
+  "classification_definitions": {
+    "actionable": "Requires a SPECIFIC HUMAN ACTION: reply to someone, pay a bill, attend an event, make a decision, complete a form, book an appointment. The email must clearly ask someone to do something.",
+    "informational": "Useful to know but NO action needed. Includes: order confirmations, shipping updates, delivery notifications, receipts, eStatements, security alerts, account summaries, status updates, completed transactions, app notifications, subscription renewals (already charged).",
+    "noise": "Marketing, promotions, newsletters, social media notifications, spam, deal alerts, product recommendations, surveys, NPS requests, unsubscribe-bait."
+  },
+  "not_actionable_examples": [
+    "Order shipped / delivered notifications",
+    "Payment processed / receipt confirmations",
+    "Password reset you didn't request",
+    "Your statement is ready",
+    "Software update notifications",
+    "Social media notifications (likes, comments, follows)",
+    "Automated reminders from apps (unless deadline you must act on)",
+    "Marketing disguised as urgency (Last chance!, Don't miss out!, Your cart is waiting)",
+    "Newsletters, even from sources you value",
+    "Surveys and feedback requests"
+  ],
+  "noise_senders": [
+    "linkedin.com",
+    "facebookmail.com",
+    "twitter.com",
+    "noreply@youtube.com",
+    "temu.com",
+    "amazon.com.au deals/marketing",
+    "jbhifi.com.au",
+    "templeandwebster.com.au",
+    "ikea.com",
+    "cudo.com.au",
+    "kayak.com",
+    "groupon.com",
+    "catch.com.au",
+    "ebay.com.au deals",
+    "kogan.com",
+    "ozbargain.com.au",
+    "noreply@medium.com"
+  ],
+  "noise_sender_patterns": [
+    "noreply@* sending automated notifications",
+    "no-reply@* sending automated notifications",
+    "*@marketing.*",
+    "*@promo.*",
+    "*@newsletter.*"
+  ],
+  "high_priority_rules": [
+    {
+      "match": "from @asx.com.au requiring a response",
+      "topic": "Work/ASX",
+      "priority": "high",
+      "assignee": "Maged"
+    },
+    {
+      "match": "from accountant / TLK Partners requesting documents or decisions",
+      "topic": "Financial/Tax & Accounting",
+      "priority": "high",
+      "assignee": "Maged"
+    },
+    {
+      "match": "medical appointments needing confirmation or rescheduling",
+      "topic": "Family/Health & Appointments",
+      "priority": "medium",
+      "assignee": "Mandy"
+    },
+    {
+      "match": "bills or payments DUE (not already paid)",
+      "topic": "Financial/Payments & Subscriptions",
+      "priority": "urgent",
+      "assignee": "Maged"
+    },
+    {
+      "match": "government or legal correspondence requiring a response",
+      "topic": "Admin",
+      "priority": "urgent",
+      "assignee": "Maged"
+    },
+    {
+      "match": "school permission slips, event RSVPs, or forms to complete",
+      "topic": "Family/School & Education",
+      "priority": "medium",
+      "assignee": "Mandy"
+    },
+    {
+      "match": "church activities or community events needing RSVP",
+      "topic": "Family/Church & Community",
+      "priority": "medium",
+      "assignee": "Mandy"
+    }
+  ],
+  "family_context": {
+    "members": [
+      {
+        "name": "Maged",
+        "role": "admin",
+        "handles": "finances, work, tech, business"
+      },
+      {
+        "name": "Mandy",
+        "role": "family admin",
+        "handles": "kids, school, health, household"
+      }
+    ],
+    "notes": "Children in family"
+  },
+  "user_feedback_rules": [
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "[Action required] Review documents for a business representative",
+      "learned": "correctly actionable",
+      "original_classification": "actionable",
+      "confirmed": true,
+      "date": "2026-03-28"
+    },
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "[Action required] Review documents for a business representative",
+      "learned": "correctly actionable",
+      "original_classification": "actionable",
+      "confirmed": true,
+      "date": "2026-03-28"
+    },
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "Verify your email",
+      "learned": "correctly actionable",
+      "original_classification": "actionable",
+      "confirmed": true,
+      "date": "2026-03-28"
+    },
+    {
+      "sender": "aucegypt.edu",
+      "subject_pattern": "Call for Nominations: 2026 Alumni Awards Ceremony",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-03-28"
+    },
+    {
+      "sender": "linkedin.com",
+      "subject_pattern": "I want to connect",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-03-28"
+    },
+    {
+      "sender": "vercel.com",
+      "subject_pattern": "Failed production deployment on team 'Maged Boctor's projects'",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-03-28"
+    },
+    {
+      "sender": "a.godaddy.com",
+      "subject_pattern": "DTHREE.IO - Welcome to the Domain Broker Service",
+      "learned": "correctly actionable",
+      "original_classification": "actionable",
+      "confirmed": true,
+      "date": "2026-03-28"
+    }
+  ]
+}
