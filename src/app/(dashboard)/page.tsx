@@ -35,10 +35,6 @@ const formatAUD0 = (v: number) =>
 function fyStart(d: Date): Date {
   return new Date(d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1, 6, 1)
 }
-function fyLabel(d: Date): string {
-  const y = d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1
-  return `FY${y}/${y + 1}`
-}
 
 export default async function HomePage() {
   const session = await auth()
@@ -51,7 +47,6 @@ export default async function HomePage() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
   const fyStartStr = fyStart(now).toISOString().slice(0, 10)
-  const currentFyLabel = fyLabel(now)
 
   const [
     activeTaskCount,
@@ -160,7 +155,6 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <NavCard
             title="Tasks"
-            description="Family action items from Gmail scanning."
             href="/tasks"
             icon={CheckSquare}
             iconColor="text-blue-600"
@@ -173,7 +167,6 @@ export default async function HomePage() {
           />
           <NavCard
             title="Gmail Scanner"
-            description="Scan your inbox for new action items."
             href="/scan"
             icon={Mail}
             iconColor="text-purple-600"
@@ -201,7 +194,6 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <NavCard
                 title="Accounts & Entities"
-                description="Manage bank accounts, entities, and their mappings."
                 href="/financials/accounts"
                 icon={Settings2}
                 iconColor="text-cyan-600"
@@ -214,7 +206,6 @@ export default async function HomePage() {
               />
               <NavCard
                 title="Assumptions & Rules"
-                description="WFH %, phone %, vehicle % — set your FY assumptions."
                 href="/financials/assumptions"
                 icon={SlidersHorizontal}
                 iconColor="text-rose-600"
@@ -233,7 +224,6 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <NavCard
                 title="Import Statements"
-                description="Scan Google Drive for new PDFs, CSVs, and QFX files."
                 href="/financials/import"
                 icon={Upload}
                 iconColor="text-indigo-600"
@@ -256,7 +246,6 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <NavCard
                 title="Detect Transfers"
-                description="Find debit/credit pairs between accounts."
                 href="/financials/transfers"
                 icon={ArrowLeftRight}
                 iconColor="text-sky-600"
@@ -267,7 +256,6 @@ export default async function HomePage() {
               />
               <NavCard
                 title="Categorise"
-                description="Review and assign categories to merchants."
                 href="/financials/categorize"
                 icon={Tag}
                 iconColor="text-amber-600"
@@ -280,7 +268,6 @@ export default async function HomePage() {
               />
               <NavCard
                 title="Duplicate Detection"
-                description="Find and remove duplicate transactions."
                 href="/financials/duplicates"
                 icon={Copy}
                 iconColor="text-red-600"
@@ -301,7 +288,6 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <NavCard
                 title="Financial Overview"
-                description="Income vs expenses and monthly trends."
                 href="/financials"
                 icon={BarChart3}
                 iconColor="text-green-600"
@@ -313,7 +299,6 @@ export default async function HomePage() {
               />
               <NavCard
                 title="Spending Analysis"
-                description="Category breakdown and drill-down."
                 href="/financials/spending"
                 icon={PieChart}
                 iconColor="text-pink-600"
@@ -325,7 +310,6 @@ export default async function HomePage() {
               />
               <NavCard
                 title="Subscriptions"
-                description="Recurring charges and annual cost."
                 href="/financials/subscriptions"
                 icon={Repeat}
                 iconColor="text-teal-600"
@@ -337,7 +321,6 @@ export default async function HomePage() {
               />
               <NavCard
                 title="Statement Coverage"
-                description="Months with statements vs gaps."
                 href="/financials/coverage"
                 icon={CalendarDays}
                 iconColor="text-yellow-600"
@@ -359,7 +342,6 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <NavCard
                 title="Tax Prep"
-                description={`${currentFyLabel} deductibles for your accountant.`}
                 href="/financials/tax"
                 icon={FileText}
                 iconColor="text-violet-600"
@@ -380,7 +362,6 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <NavCard
             title="Invoice Scanner"
-            description="Separate app for scanning business invoices."
             href="#"
             icon={ScanLine}
             iconColor="text-emerald-600"
@@ -391,7 +372,6 @@ export default async function HomePage() {
           />
           <NavCard
             title="Vehicle Logbook"
-            description="12-week trip logger for business %."
             href="/vehicles"
             icon={Car}
             iconColor="text-orange-600"

@@ -5,7 +5,6 @@ import { ExternalLink } from 'lucide-react'
 
 interface NavCardProps {
   title: string
-  description: string
   href: string
   icon: LucideIcon
   iconColor?: string
@@ -17,12 +16,11 @@ interface NavCardProps {
 }
 
 /**
- * Vertical navigation card used on the home page.
- * Icon at top, then title + description, optional stats row at the bottom.
+ * Compact vertical navigation card used on the home page.
+ * Icon + title + optional stats row. No description — the home page is the sole nav hub.
  */
 export function NavCard({
   title,
-  description,
   href,
   icon: Icon,
   iconColor = 'text-blue-600',
@@ -35,15 +33,15 @@ export function NavCard({
   const content = (
     <div
       className={cn(
-        'group h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-5 transition-all',
+        'group h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-3 transition-all',
         disabled
           ? 'opacity-50 cursor-not-allowed'
           : 'hover:shadow-md hover:border-blue-200 cursor-pointer'
       )}
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className={cn('p-2.5 rounded-lg', iconBg)}>
-          <Icon className={cn('h-5 w-5', iconColor)} />
+      <div className="flex items-start justify-between mb-2">
+        <div className={cn('p-2 rounded-md', iconBg)}>
+          <Icon className={cn('h-4 w-4', iconColor)} />
         </div>
         <div className="flex items-center gap-1.5">
           {badge && (
@@ -57,12 +55,11 @@ export function NavCard({
       <h3 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
         {title}
       </h3>
-      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
       {stats && stats.length > 0 && (
-        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
           {stats.map((s, i) => (
             <div key={i} className="flex-1 min-w-0">
-              <p className="text-lg font-bold text-gray-800 truncate">{s.value}</p>
+              <p className="text-base font-bold text-gray-800 truncate">{s.value}</p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{s.label}</p>
             </div>
           ))}

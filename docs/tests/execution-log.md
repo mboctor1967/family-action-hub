@@ -14,6 +14,20 @@ Types: `manual`, `build`, `schema`, `visual`, `smoke`
 
 ---
 
+## 2026-04-05 — visual + build — UI Refresh v0.1.1 (nav removal + compact NavCards)
+- TC-001 (header has no nav links): PASS
+- TC-002 (no bottom nav on mobile): PASS
+- TC-003 (all 15 cards fit one screen, desktop): PASS
+- TC-004 (NavCard compact classes): PASS
+- TC-005 (no `description` prop references, tsc clean): PASS
+- TC-006 (`<main>` uses `pb-4`): PASS
+- TC-007 (back arrow from sub-pages returns to `/`): PASS
+- Build (`npm run build`): PASS
+- Type-check (`tsc --noEmit`): PASS
+- Lint (changed files only): PASS (1 pre-existing `as any` on page.tsx:44, out of scope)
+- code-reviewer: PASS (0 blocking)
+
+
 ## 2026-04-05 — build — Phase D: Assumptions CRUD
 - Build: PASS (17.5s, all 4 assumptions routes registered)
 - Schema: PASS (drizzle-kit push — unique index applied to Neon)

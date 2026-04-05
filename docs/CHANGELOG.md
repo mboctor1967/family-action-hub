@@ -7,6 +7,8 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-04-05** — `refactor` — **v0.1.1** UI Refresh: removed duplicate header nav links and mobile bottom nav — the home page is now the single navigation hub. Compacted `NavCard` (`p-3`, smaller icon, no description text) so all 15 home cards fit on one screen at desktop resolutions. Dropped `pb-20 md:pb-4` from `<main>` since the fixed bottom nav is gone. Deleted `src/components/layout/bottom-nav.tsx`. No schema, API, or behaviour changes — every sub-page still reaches home via its existing `<PageHeader>` back arrow. Refs: `docs/requirements/2026-04-05-ui-refresh-nav-removal.md`, `docs/specs/2026-04-05-ui-refresh-nav-removal.md`, `docs/plans/2026-04-05-ui-refresh-nav-removal.md`.
+
 - **2026-04-05** — `feat` — Phase D: Assumptions CRUD page at `/financials/assumptions`. FY tabs, entity-grouped tables, create/edit dialog, delete confirmation, copy-from-previous-FY. Unique index on (fy, entityId, assumptionType). Shared helpers in `src/lib/assumptions.ts`.
 - **2026-04-05** — `refactor` — Phase 2d+2e: Applied `<PageHeader>` to Accounts, Tax, Scan, and Settings pages. All pages now use shared components consistently.
 - **2026-04-05** — `refactor` — Phase 2b: Tasks pages (list, detail, new) refactored with `<PageHeader>` and `<EmptyState>`. Destructive delete button switched to outlined red style.

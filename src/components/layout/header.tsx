@@ -8,10 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LogOut, User, Home, CheckSquare, Scan, Settings, DollarSign } from 'lucide-react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { LogOut, User } from 'lucide-react'
 
 interface HeaderProps {
   user: {
@@ -21,16 +18,7 @@ interface HeaderProps {
   }
 }
 
-const desktopNavItems = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/tasks', label: 'Tasks', icon: CheckSquare },
-  { href: '/financials', label: 'Financials', icon: DollarSign },
-  { href: '/scan', label: 'Scan', icon: Scan },
-  { href: '/settings', label: 'Settings', icon: Settings },
-]
-
 export function Header({ user }: HeaderProps) {
-  const pathname = usePathname()
   const initials = user.name
     ? user.name
         .split(' ')
@@ -42,30 +30,9 @@ export function Header({ user }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-border">
       <div className="flex items-center justify-between h-14 px-4">
-        <div className="flex items-center gap-6">
+        <div className="flex items-baseline gap-1">
           <h1 className="text-lg font-bold text-blue-900">BOCTOR Family Hub</h1>
-          <span className="text-[10px] text-muted-foreground font-medium -ml-5 mt-1">v0.1</span>
-          <nav className="hidden md:flex items-center gap-1">
-            {desktopNavItems.map((item) => {
-              const isActive = pathname === item.href ||
-                (item.href !== '/' && pathname.startsWith(item.href))
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
-                    isActive
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
+          <span className="text-[10px] text-muted-foreground font-medium">v0.1</span>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger className="rounded-full outline-none">

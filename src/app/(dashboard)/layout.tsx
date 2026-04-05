@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/header'
-import { BottomNav } from '@/components/layout/bottom-nav'
 import { Providers } from '@/components/providers'
 
 export default async function DashboardLayout({
@@ -23,12 +22,11 @@ export default async function DashboardLayout({
             avatar_url: session.user.image || undefined,
           }}
         />
-        <main className="flex-1 pb-20 md:pb-4">
+        <main className="flex-1 pb-4">
           <div className="max-w-4xl mx-auto px-4 py-4">
             {children}
           </div>
         </main>
-        <BottomNav />
       </div>
     </Providers>
   )
