@@ -7,6 +7,8 @@ import {
   integer,
   real,
   jsonb,
+  numeric,
+  date,
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core'
@@ -213,4 +215,194 @@ export const gmailAccountsRelations = relations(gmailAccounts, ({ one }) => ({
 
 export const emailsScannedRelations = relations(emailsScanned, ({ one }) => ({
   gmailAccount: one(gmailAccounts, { fields: [emailsScanned.gmailAccountId], references: [gmailAccounts.id] }),
+}))
+
+// =====================
+// Financial Tables
+// =====================
+
+// Financial Categories
+export const financialCategories = pgTable('financial_categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull().unique(),
+  sortOrder: integer('sort_order').default(0),
+  color: text('color').default('#6b7280'),
+  createdAt: timestamp('created_at').defaultNow(),
+})
+
+// Financial Subcategories
+export const financialSubcategories = pgTable('financial_subcategories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  categoryId: uuid('category_id').notNull().references(() => financialCategories.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  atoCode: text('ato_code'), // e.g. D1-D15 for individuals, business schedule codes — populated later
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  index('idx_fin_subcategories_category').on(table.categoryId),
+])
+
+export const financialCategoriesRelations = relations(financialCategories, ({ many }) => ({
+  subcategories: many(financialSubcategories),
+}))
+
+export const financialSubcategoriesRelations = relations(financialSubcategories, ({ one }) => ({
+  category: one(financialCategories, { fields: [financialSubcategories.categoryId], references: [financialCategories.id] }),
+}))
+
+// Financial Entities (top-level ownership grouping)
+export const financialEntities = pgTable('financial_entities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull().unique(),
+  type: text('type').notNull().default('personal'), // personal, business, trust
+  color: text('color').default('#2B579A'),
+  sortOrder: integer('sort_order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+})
+
+// Financial Accounts (one row per unique bank account)
+export const financialAccounts = pgTable('financial_accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bankName: text('bank_name').notNull(),
+  accountName: text('account_name'),
+  accountNumber: text('account_number'),
+  accountNumberLast4: text('account_number_last4'),
+  bsb: text('bsb'),
+  accountType: text('account_type'), // personal_cheque, personal_savings, business_cheque, credit_card
+  entityId: uuid('entity_id').references(() => financialEntities.id, { onDelete: 'set null' }),
+  owner: text('owner'), // maged, family, business (legacy)
+  currency: text('currency').notNull().default('AUD'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  uniqueIndex('fin_accounts_bank_number').on(table.bankName, table.accountNumberLast4),
+])
+
+// Financial Statements (one row per PDF statement)
+export const financialStatements = pgTable('financial_statements', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  accountId: uuid('account_id').references(() => financialAccounts.id, { onDelete: 'set null' }),
+  fileName: text('file_name'),
+  gdriveFileId: text('gdrive_file_id').unique(),
+  fileHash: text('file_hash').unique(),
+  bankName: text('bank_name'),
+  statementStart: date('statement_start'),
+  statementEnd: date('statement_end'),
+  openingBalance: numeric('opening_balance', { precision: 12, scale: 2 }),
+  closingBalance: numeric('closing_balance', { precision: 12, scale: 2 }),
+  sourceType: text('source_type').default('pdf_text'), // csv, pdf_text, pdf_ocr
+  isDuplicate: boolean('is_duplicate').default(false),
+  needsReview: boolean('needs_review').default(false),
+  importedAt: timestamp('imported_at').defaultNow(),
+}, (table) => [
+  index('idx_fin_statements_account').on(table.accountId),
+  uniqueIndex('fin_statements_account_period').on(table.accountId, table.statementStart, table.statementEnd),
+])
+
+// Financial Transactions (one row per line item)
+export const financialTransactions = pgTable('financial_transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  statementId: uuid('statement_id').references(() => financialStatements.id, { onDelete: 'cascade' }),
+  accountId: uuid('account_id').references(() => financialAccounts.id, { onDelete: 'set null' }),
+  transactionDate: date('transaction_date').notNull(),
+  descriptionRaw: text('description_raw'),
+  merchantName: text('merchant_name'),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  isDebit: boolean('is_debit'),
+  runningBalance: numeric('running_balance', { precision: 12, scale: 2 }),
+  category: text('category'),
+  subcategory: text('subcategory'),
+  isSubscription: boolean('is_subscription').default(false),
+  subscriptionFrequency: text('subscription_frequency'), // monthly, annual, weekly
+  isTaxDeductible: boolean('is_tax_deductible').default(false),
+  taxCategory: text('tax_category'), // work_expense, investment, donation
+  needsReview: boolean('needs_review').default(false),
+  rowIndex: integer('row_index'),
+  // v4 additions
+  amountExGst: numeric('amount_ex_gst', { precision: 12, scale: 2 }),
+  gstAmount: numeric('gst_amount', { precision: 12, scale: 2 }),
+  gstApplicable: boolean('gst_applicable').default(false),
+  transferPairId: uuid('transfer_pair_id'), // links matching transfer pairs
+  aiSuggestedCategory: text('ai_suggested_category'), // AI-suggested category pending user review
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  uniqueIndex('fin_txn_dedup').on(table.accountId, table.transactionDate, table.amount, table.descriptionRaw, table.rowIndex),
+  index('idx_fin_txn_date').on(table.transactionDate),
+  index('idx_fin_txn_account').on(table.accountId),
+  index('idx_fin_txn_statement').on(table.statementId),
+  index('idx_fin_txn_category').on(table.category),
+  index('idx_fin_txn_transfer_pair').on(table.transferPairId),
+])
+
+// Transaction Splits (v4) — one parent transaction can be split across multiple categories/entities
+export const transactionSplits = pgTable('transaction_splits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  transactionId: uuid('transaction_id').notNull().references(() => financialTransactions.id, { onDelete: 'cascade' }),
+  categoryId: uuid('category_id').references(() => financialCategories.id, { onDelete: 'set null' }),
+  subcategoryId: uuid('subcategory_id').references(() => financialSubcategories.id, { onDelete: 'set null' }),
+  entityId: uuid('entity_id').references(() => financialEntities.id, { onDelete: 'set null' }),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  index('idx_txn_splits_transaction').on(table.transactionId),
+])
+
+// Financial Assumptions (v4) — WFH%, phone%, vehicle%, etc. — per FY, per entity
+export const financialAssumptions = pgTable('financial_assumptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  fy: text('fy').notNull(), // e.g. "FY2025"
+  entityId: uuid('entity_id').references(() => financialEntities.id, { onDelete: 'cascade' }),
+  assumptionType: text('assumption_type').notNull(), // wfh_percentage, phone_business_pct, home_office_method, vehicle_method, vehicle_business_pct, etc.
+  valueNumeric: numeric('value_numeric', { precision: 10, scale: 2 }),
+  valueText: text('value_text'), // for enum values (e.g. "fixed_rate_70c", "actual_cost", "logbook", "cents_per_km")
+  rationale: text('rationale'),
+  approvedBy: text('approved_by'),
+  approvedDate: timestamp('approved_date'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => [
+  uniqueIndex('idx_fin_assumptions_fy_entity_type').on(table.fy, table.entityId, table.assumptionType),
+])
+
+// Parse Errors log
+export const parseErrors = pgTable('parse_errors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  fileName: text('file_name'),
+  gdriveFileId: text('gdrive_file_id'),
+  errorMessage: text('error_message'),
+  errorType: text('error_type'), // image_pdf, parse_failure, ai_error
+  createdAt: timestamp('created_at').defaultNow(),
+})
+
+// Financial Relations
+export const financialEntitiesRelations = relations(financialEntities, ({ many }) => ({
+  accounts: many(financialAccounts),
+}))
+
+export const financialAccountsRelations = relations(financialAccounts, ({ one, many }) => ({
+  entity: one(financialEntities, { fields: [financialAccounts.entityId], references: [financialEntities.id] }),
+  statements: many(financialStatements),
+  transactions: many(financialTransactions),
+}))
+
+export const financialStatementsRelations = relations(financialStatements, ({ one, many }) => ({
+  account: one(financialAccounts, { fields: [financialStatements.accountId], references: [financialAccounts.id] }),
+  transactions: many(financialTransactions),
+}))
+
+export const financialTransactionsRelations = relations(financialTransactions, ({ one, many }) => ({
+  statement: one(financialStatements, { fields: [financialTransactions.statementId], references: [financialStatements.id] }),
+  account: one(financialAccounts, { fields: [financialTransactions.accountId], references: [financialAccounts.id] }),
+  splits: many(transactionSplits),
+}))
+
+export const transactionSplitsRelations = relations(transactionSplits, ({ one }) => ({
+  transaction: one(financialTransactions, { fields: [transactionSplits.transactionId], references: [financialTransactions.id] }),
+  category: one(financialCategories, { fields: [transactionSplits.categoryId], references: [financialCategories.id] }),
+  subcategory: one(financialSubcategories, { fields: [transactionSplits.subcategoryId], references: [financialSubcategories.id] }),
+  entity: one(financialEntities, { fields: [transactionSplits.entityId], references: [financialEntities.id] }),
+}))
+
+export const financialAssumptionsRelations = relations(financialAssumptions, ({ one }) => ({
+  entity: one(financialEntities, { fields: [financialAssumptions.entityId], references: [financialEntities.id] }),
 }))
