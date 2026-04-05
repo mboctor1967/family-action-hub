@@ -1,6 +1,6 @@
 # Assumptions CRUD Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use /project:phase-execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a CRUD page at `/financials/assumptions` for managing per-FY, per-entity financial assumptions with dialog-based create/edit, FY tabs, entity grouping, and copy-forward functionality.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js App Router, Drizzle ORM (PostgreSQL), Shadcn UI (Dialog, Select, Input, Textarea, Table, Button, Tabs), react-hot-toast, Lucide icons. Shared components: PageHeader, StatCard, EmptyState, DataTableContainer.
 
-**Spec:** `docs/superpowers/specs/2026-04-05-assumptions-crud-design.md`
+**Spec:** `docs/specs/2026-04-05-assumptions-crud-design.md`
 
 ---
 
