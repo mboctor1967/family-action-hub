@@ -40,19 +40,17 @@ Do not proceed to Stage 2 until Stage 1 passes.
 ## STAGE 2 — Code Quality
 
 ### 3. Code standards (from CLAUDE.md)
-- Naming conventions correct (files, functions, components, constants)?
-- No function exceeds 40 lines without an explanatory comment?
-- JSDoc present on every exported function/component?
-- JSDoc includes @param, @returns, and @example?
+- Naming conventions correct (files kebab-case, components PascalCase, functions camelCase)?
+- No excessively long functions without clear intent?
+- Follows existing codebase patterns (useState, fetch, react-hot-toast, shared UI components)?
 
 ### 4. Test quality
 - Tests exist and are passing?
-- Tests named with TC-XXX prefix for traceability?
 - Happy path, edge cases, and error cases covered?
 - No test that always passes regardless of implementation?
 
 ### 5. Documentation
-- Were the relevant docs updated (plan checkbox ticked, architecture updated if structure changed)?
+- Were the relevant docs updated (plan checkbox ticked, CHANGELOG updated if needed)?
 
 ## Output Format
 
@@ -76,8 +74,8 @@ Return a structured report — do not bury the verdict:
 - [FILE:LINE] Description of issue
 
 ### Coverage Confirmation
-- AC-001: covered by TC-001 ✅
-- AC-002: covered by TC-002 ✅
+- AC-001: covered ✅
+- AC-002: covered ✅
 - AC-003: NOT COVERED ❌
 
 ### Summary
@@ -86,4 +84,4 @@ Proceed to next wave: YES | NO
 ```
 
 A FAIL verdict with zero BLOCKING issues is still a FAIL if any
-acceptance criterion has no test coverage.
+acceptance criterion has no coverage.

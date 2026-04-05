@@ -13,7 +13,7 @@ Never skip ahead. Never start coding before Phase 3 is signed off.
 
 ## Before Starting
 
-- Identify which app(s) are affected and flag cross-app impacts upfront
+- Identify which domain(s) are affected and flag cross-domain impacts upfront
 - Check if any relevant docs already exist — pick up from the right phase
 - Confirm the starting phase with me
 
@@ -44,7 +44,7 @@ Data models. Error handling. Security and performance notes.
 ## Phase 4 — Implementation Planning
 /project:phase-plan $ARGUMENTS
 
-Superpowers write-plan. Wave annotations for sub-agent execution.
+Generate implementation plan. Wave annotations for sub-agent execution.
 Every task has AC coverage, agent assignment, and owned files.
 → Wait for SIGNED OFF
 

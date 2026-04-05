@@ -22,10 +22,10 @@ Read that summary carefully before touching any doc.
 
 Also read:
 - The current version of each doc you will update
-- /docs/spec.md for technical accuracy reference
-- /docs/requirements.md for feature context
+- The relevant spec in docs/specs/ for technical accuracy
+- The relevant requirements in docs/requirements/ for feature context
 
-### 2. Update /docs/architecture.md if structure changed
+### 2. Update architecture notes if structure changed
 Only update if:
 - New files were created that change the architecture
 - New patterns were introduced
@@ -34,7 +34,7 @@ Only update if:
 Preserve existing architecture decisions. Add new sections, update
 component lists, update data flow if it changed.
 
-### 3. Update /docs/changelog.md
+### 3. Update docs/CHANGELOG.md
 Add an entry at the TOP of the changelog:
 ```
 ## [unreleased] — <date>
@@ -49,7 +49,7 @@ Add an entry at the TOP of the changelog:
 - <significant technical changes>
 ```
 
-### 4. Update /docs/deployment.md if needed
+### 4. Update deployment notes if needed
 Only if the implementation introduced:
 - New environment variables
 - New database migrations
@@ -58,7 +58,7 @@ Only if the implementation introduced:
 
 Add to the relevant sections — do not replace them.
 
-### 5. Tick completed task checkboxes in implementation-plan.md
+### 5. Tick completed task checkboxes in the implementation plan
 For each task confirmed complete by the implementer agents,
 tick its checkbox: [ ] → [x]
 

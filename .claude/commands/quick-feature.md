@@ -48,7 +48,7 @@ For each significant decision, present options with recommendation:
 ### Cross-app impact
   Affected apps: <list> | None identified
 
-Save to /apps/<app>/docs/requirements.md:
+Save to docs/requirements/:
 
   Doc version: v0.1
   Last updated: YYYY-MM-DD
@@ -69,7 +69,7 @@ Cover only what is non-obvious or non-standard for this codebase:
 - Auth and validation rules
 - Any schema changes (if none: state explicitly)
 
-Save to /apps/<app>/docs/spec.md:
+Save to docs/specs/:
 
   Doc version: v0.1
   Last updated: YYYY-MM-DD
@@ -83,7 +83,7 @@ Wait for my confirmation before continuing.
 
 ## Phase C — Plan + Test Cases (combined)
 
-Invoke Superpowers write-plan skill.
+Generate implementation plan.
 
 Annotate each task:
   [PARALLEL] | [SEQUENTIAL, DEPENDS ON: N]
@@ -103,7 +103,7 @@ Include test cases inline below the plan (no separate test-plan.md):
   Steps: <brief>
   Expected: <outcome>
 
-Save to /apps/<app>/docs/implementation-plan.md:
+Save to docs/plans/:
 
   Doc version: v0.1
   Last updated: YYYY-MM-DD

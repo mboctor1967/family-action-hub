@@ -10,9 +10,9 @@ argument-hint: "<feature or app name>"
 Spawn two explorer sub-agents in parallel:
 
 Explorer A — read:
-- /docs/spec.md (technical decisions, API contracts, data models)
-- /docs/requirements.md (acceptance criteria — every AC must map to a task)
-- /docs/design.md (component breakdown)
+- The relevant spec in docs/specs/ (technical decisions, API contracts, data models)
+- The relevant requirements in docs/requirements/ (acceptance criteria — every AC must map to a task)
+- Any design docs in docs/specs/
 
 Explorer B — read the codebase:
 - Current file structure of affected apps
@@ -30,9 +30,7 @@ If /docs/implementation-plan.md already exists:
 - Identify remaining tasks
 - Present a status summary before deciding to extend or create new
 
-## Step 3 — Generate Plan via Superpowers
-
-Invoke the Superpowers write-plan skill.
+## Step 3 — Generate Implementation Plan
 
 Every task must:
 - Be specific enough for a developer with no prior context to execute
@@ -91,7 +89,7 @@ No AC may be left without a task.
 
 ## Step 7 — Save the Plan
 
-Save to /apps/<app>/docs/implementation-plan.md:
+Save to docs/plans/:
 
 ---
 Doc version: v0.1 (increment if updating existing)

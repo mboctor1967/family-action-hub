@@ -10,7 +10,7 @@ argument-hint: "<feature or app name>"
 Spawn two explorer sub-agents in parallel:
 
 Explorer A — read:
-- /docs/requirements.md — especially decisions made and acceptance criteria
+- The relevant requirements in docs/requirements/ — especially decisions made and acceptance criteria
 - Any existing design docs, wireframes, or Figma references in the repo
 
 Explorer B — read the codebase:
@@ -71,7 +71,7 @@ for me to resolve. Design is where requirement gaps become visible.
 
 ## Step 5 — Write / Update Design Doc
 
-Write or update /apps/<app>/docs/design.md:
+Write or update the design doc in docs/specs/:
 
 ---
 Doc version: v0.1 (increment if updating existing)

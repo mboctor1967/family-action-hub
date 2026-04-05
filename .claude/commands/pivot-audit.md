@@ -15,7 +15,7 @@ anything that is already useful.
 Spawn an `explorer` sub-agent to map the project:
 
 Ask the explorer to find and report:
-- All apps or sub-projects (look for /apps/, /packages/, monorepo roots)
+- All domains or functional areas (look for pages, API routes, component groups)
 - All existing documentation files (*.md, *.txt, docs/, wiki/)
 - Existing test files and coverage reports
 - Existing config files (CI/CD, deployment, env examples)
@@ -26,7 +26,7 @@ Do not read every file yet — just catalogue what exists with paths.
 
 ## Step 2 — Map Existing Docs to Framework
 
-For each app (or root if single app), create a mapping table:
+Create a mapping table for the project:
 
 | Framework Doc           | Status        | Existing file (if any)      | Quality note          |
 |------------------------|---------------|-----------------------------|-----------------------|
@@ -44,7 +44,7 @@ For each app (or root if single app), create a mapping table:
 ## Step 3 — Identify Current Phase
 
 Based on what exists and the state of the codebase, determine:
-- What phase is each app currently in?
+- What phase is the project currently in?
 - What is the most recent completed phase?
 - What is the next required phase?
 
@@ -63,8 +63,8 @@ List for each app, in priority order:
 
 ## Step 5 — Create /docs/ Structure
 
-For each app that is missing the /docs/ folder:
-- Create /apps/<app>/docs/ (or /docs/ for single app)
+If the docs/ folder structure is incomplete:
+- Create docs/ subfolders as needed (requirements/, specs/, plans/, tests/, archive/)
 - For each MISSING doc: create the file with framework headings only
 - For each PARTIAL doc: copy existing content into the framework file,
   preserving all existing content, just adding missing sections as headings

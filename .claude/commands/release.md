@@ -14,9 +14,9 @@ Read the current version from package.json for the affected app(s).
 
 If --patch, --minor, or --major was passed: use that.
 If not passed, determine the correct bump by reading:
-- /docs/implementation-plan.md (what was built)
-- /docs/test-results.md (what was tested)
-- /docs/changelog.md (last release)
+- The relevant plan in docs/plans/ (what was built)
+- docs/tests/execution-log.md (what was tested)
+- docs/CHANGELOG.md (last release)
 
 Apply the versioning rules from CLAUDE.md:
   New user-facing feature     → --minor  (0.x.0)
@@ -42,11 +42,10 @@ Present the list of files updated and their new version values.
 ## Step 3 — Generate Three-Audience Release Notes
 
 Read:
-- /docs/test-results.md (Release Notes Tagging section)
-- /docs/requirements.md (user stories and AC descriptions)
-- /docs/test-cases.md (TC-XXX descriptions)
-- /docs/spec.md (technical changes)
-- /docs/deployment.md (env vars, migrations)
+- docs/tests/execution-log.md (test results)
+- The relevant requirements in docs/requirements/ (user stories and AC descriptions)
+- The relevant spec in docs/specs/ (technical changes)
+- docs/CHANGELOG.md (previous entries for context)
 
 Generate THREE separate sections for /docs/release-notes.md:
 
@@ -132,7 +131,7 @@ Run in order before deploying:
 
 ## Step 4 — Update Changelog
 
-Add to the TOP of /docs/changelog.md:
+Add to the TOP of docs/CHANGELOG.md:
 
   ## v<new version> — YYYY-MM-DD
 

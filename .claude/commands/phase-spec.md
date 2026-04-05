@@ -10,9 +10,9 @@ argument-hint: "<feature or app name>"
 Spawn two explorer sub-agents in parallel:
 
 Explorer A — read documentation:
-- /docs/requirements.md (decisions, ACs, cross-app impacts)
-- /docs/design.md (design decisions, component breakdown)
-- Any existing spec or ADR files
+- The relevant requirements in docs/requirements/ (decisions, ACs, cross-domain impacts)
+- The relevant design doc in docs/specs/ (design decisions, component breakdown)
+- Any existing spec or ADR files in docs/specs/
 
 Explorer B — read existing code:
 - Existing API routes related to this feature
@@ -58,7 +58,7 @@ before writing the spec.
 
 ## Step 4 — Write / Update Spec Doc
 
-Write or update /apps/<app>/docs/spec.md:
+Write or update the spec doc in docs/specs/:
 
 ---
 Doc version: v0.1 (increment if updating existing)

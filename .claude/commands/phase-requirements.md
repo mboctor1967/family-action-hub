@@ -90,7 +90,7 @@ decisions — do not silently ignore them.
 
 ## Step 6 — Write / Update Requirements Doc
 
-Write or update /apps/<app>/docs/requirements.md:
+Write or update the requirements doc in docs/requirements/:
 
 ---
 Doc version: v0.1 (increment if updating existing doc)
