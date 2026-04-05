@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LogOut, User, Inbox, CheckSquare, Scan, Settings } from 'lucide-react'
+import { LogOut, User, Home, CheckSquare, Scan, Settings, DollarSign } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -22,8 +22,9 @@ interface HeaderProps {
 }
 
 const desktopNavItems = [
-  { href: '/', label: 'Inbox', icon: Inbox },
+  { href: '/', label: 'Home', icon: Home },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
+  { href: '/financials', label: 'Financials', icon: DollarSign },
   { href: '/scan', label: 'Scan', icon: Scan },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
@@ -43,6 +44,7 @@ export function Header({ user }: HeaderProps) {
       <div className="flex items-center justify-between h-14 px-4">
         <div className="flex items-center gap-6">
           <h1 className="text-lg font-bold text-blue-900">BOCTOR Family Hub</h1>
+          <span className="text-[10px] text-muted-foreground font-medium -ml-5 mt-1">v0.1</span>
           <nav className="hidden md:flex items-center gap-1">
             {desktopNavItems.map((item) => {
               const isActive = pathname === item.href ||

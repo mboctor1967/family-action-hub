@@ -4,8 +4,10 @@ import { tasks, profiles, topics } from '@/lib/db/schema'
 import { eq, desc, and, isNull } from 'drizzle-orm'
 import { TaskCard } from '@/components/tasks/task-card'
 import { TaskFilters } from '@/components/tasks/task-filters'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
+import { Plus, CheckSquare } from 'lucide-react'
 import Link from 'next/link'
 
 interface PageProps {
@@ -43,32 +45,42 @@ export default async function TasksPage({ searchParams }: PageProps) {
     .from(profiles)
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">All Tasks</h2>
-        <Link href="/tasks/new">
-          <Button size="sm" variant="outline">
-            <Plus className="mr-1 h-4 w-4" />
-            New
-          </Button>
-        </Link>
-      </div>
-
-      <TaskFilters
-        topics={topLevelTopics}
-        members={members as any}
+    <div className="space-y-6">
+      <PageHeader
+        title="All Tasks"
+        subtitle={`${allTasks.length} task${allTasks.length !== 1 ? 's' : ''}`}
+        action={
+          <Link href="/tasks/new">
+            <Button size="sm">
+              <Plus className="mr-1 h-4 w-4" />
+              New
+            </Button>
+          </Link>
+        }
       />
 
-      <div className="space-y-2">
-        {allTasks.map((task) => (
-          <TaskCard key={task.id} task={task as any} />
-        ))}
-      </div>
+      <TaskFilters topics={topLevelTopics} members={members as any} />
 
-      {allTasks.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          No tasks found
+      {allTasks.length > 0 ? (
+        <div className="space-y-2">
+          {allTasks.map((task) => (
+            <TaskCard key={task.id} task={task as any} />
+          ))}
         </div>
+      ) : (
+        <EmptyState
+          icon={CheckSquare}
+          title="No tasks yet"
+          description="Tasks created from Gmail scanning will appear here, or create one manually."
+          action={
+            <Link href="/tasks/new">
+              <Button size="sm" className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                Create Task
+              </Button>
+            </Link>
+          }
+        />
       )}
     </div>
   )

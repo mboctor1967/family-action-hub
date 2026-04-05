@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
 import { Mail, CheckCircle2, Plus, Scan, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -38,7 +39,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">Settings</h2>
+      <PageHeader title="Settings" />
 
       <Card>
         <CardHeader>

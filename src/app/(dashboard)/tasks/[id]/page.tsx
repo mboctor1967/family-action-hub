@@ -9,7 +9,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, ExternalLink, Send, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { PageHeader } from '@/components/ui/page-header'
+import { ExternalLink, Send, ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -31,6 +33,10 @@ export default function TaskDetailPage() {
   const [members, setMembers] = useState<any[]>([])
   const [topics, setTopics] = useState<any[]>([])
   const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [showDismissDialog, setShowDismissDialog] = useState(false)
+  const [dismissReason, setDismissReason] = useState('')
 
   useEffect(() => {
     loadTask()
@@ -97,6 +103,41 @@ export default function TaskDetailPage() {
     }
   }
 
+  async function deleteTask() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/tasks/${params.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        toast.success('Task deleted')
+        router.push('/tasks')
+      } else {
+        toast.error('Failed to delete task')
+      }
+    } catch {
+      toast.error('Failed to delete task')
+    } finally {
+      setDeleting(false)
+      setShowDeleteDialog(false)
+    }
+  }
+
+  async function handleStatusChange(newStatus: string) {
+    if (newStatus === 'dismissed') {
+      setShowDismissDialog(true)
+      return
+    }
+    updateTask({ status: newStatus })
+  }
+
+  async function confirmDismiss() {
+    await updateTask({
+      status: 'dismissed',
+      dismissedReason: dismissReason.trim() || null,
+    })
+    setShowDismissDialog(false)
+    setDismissReason('')
+  }
+
   async function sendFeedback(vote: 'up' | 'down') {
     try {
       const res = await fetch(`/api/tasks/${params.id}/feedback`, {
@@ -118,28 +159,28 @@ export default function TaskDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </button>
-
-      {/* Title and status */}
-      <div>
-        <h2 className="text-xl font-bold">{task.title}</h2>
-        {task.description && (
-          <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
-        )}
-      </div>
+      <PageHeader
+        title={task.title}
+        subtitle={task.description || undefined}
+        backTo="/tasks"
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-red-600 border-red-200 hover:bg-red-50"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
+        }
+      />
 
       {/* Controls */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-muted-foreground">Status</label>
-          <Select value={task.status} onValueChange={(v) => updateTask({ status: v })}>
+          <Select value={task.status} onValueChange={handleStatusChange}>
             <SelectTrigger className="h-9 mt-1">
               <SelectValue />
             </SelectTrigger>
@@ -212,6 +253,14 @@ export default function TaskDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Dismissed reason */}
+      {task.status === 'dismissed' && task.dismissedReason && (
+        <div className="bg-muted/50 rounded-lg p-3">
+          <p className="text-xs font-medium text-muted-foreground">Dismissed reason</p>
+          <p className="text-sm mt-1">{task.dismissedReason}</p>
+        </div>
+      )}
 
       {/* Due date */}
       {task.dueDate && (
@@ -349,6 +398,55 @@ export default function TaskDetailPage() {
           </Button>
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete task</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &ldquo;{task.title}&rdquo;? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deleteTask} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dismiss reason dialog */}
+      <Dialog open={showDismissDialog} onOpenChange={setShowDismissDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Dismiss task</DialogTitle>
+            <DialogDescription>
+              Why are you dismissing this task? (optional)
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={dismissReason}
+            onChange={(e) => setDismissReason(e.target.value)}
+            placeholder="e.g. Not relevant, duplicate, resolved itself..."
+            className="min-h-[80px]"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowDismissDialog(false)
+              setDismissReason('')
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={confirmDismiss}>
+              Dismiss Task
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { PageHeader } from '@/components/ui/page-header'
 import { Scan, Loader2, CheckCircle2, AlertTriangle, Mail, Filter } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -123,7 +124,7 @@ export default function ScanPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">Email Scan</h2>
+      <PageHeader title="Email Scan" />
 
       {/* Scan controls */}
       <Card>
