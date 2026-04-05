@@ -46,6 +46,10 @@ export async function POST(request: Request) {
       taxCategory?: string | null
       isSubscription?: boolean
       subscriptionFrequency?: string | null
+      // Phase F1 — ATO code confirmation fields
+      atoCodePersonal?: string | null
+      atoCodeCompany?: string | null
+      acceptAiSuggestions?: boolean
     }>
   }
 
@@ -59,12 +63,33 @@ export async function POST(request: Request) {
     if (u.taxCategory !== undefined) fields.taxCategory = u.taxCategory
     if (u.isSubscription !== undefined) fields.isSubscription = u.isSubscription
     if (u.subscriptionFrequency !== undefined) fields.subscriptionFrequency = u.subscriptionFrequency
+    // Phase F1 — ATO code confirmation
+    if (u.atoCodePersonal !== undefined) fields.atoCodePersonal = u.atoCodePersonal
+    if (u.atoCodeCompany !== undefined) fields.atoCodeCompany = u.atoCodeCompany
 
-    const result = await db.update(financialTransactions)
-      .set(fields)
-      .where(eq(financialTransactions.merchantName, u.merchantName))
-      .returning({ id: financialTransactions.id })
-    updated += result.length
+    // "Accept AI suggestions" = copy ai_suggested_* into confirmed columns (one-click accept)
+    if (u.acceptAiSuggestions) {
+      // Handled via a SQL expression below — can't set in fields map since we need column references
+    }
+
+    if (u.acceptAiSuggestions) {
+      const result = await db.update(financialTransactions)
+        .set({
+          ...fields,
+          // Copy AI suggestions into confirmed columns (preserving any explicit overrides in fields)
+          atoCodePersonal: u.atoCodePersonal !== undefined ? u.atoCodePersonal : sql`coalesce(${financialTransactions.atoCodePersonal}, ${financialTransactions.aiSuggestedAtoCodePersonal})`,
+          atoCodeCompany: u.atoCodeCompany !== undefined ? u.atoCodeCompany : sql`coalesce(${financialTransactions.atoCodeCompany}, ${financialTransactions.aiSuggestedAtoCodeCompany})`,
+        })
+        .where(eq(financialTransactions.merchantName, u.merchantName))
+        .returning({ id: financialTransactions.id })
+      updated += result.length
+    } else {
+      const result = await db.update(financialTransactions)
+        .set(fields)
+        .where(eq(financialTransactions.merchantName, u.merchantName))
+        .returning({ id: financialTransactions.id })
+      updated += result.length
+    }
   }
 
   return NextResponse.json({ success: true, updated })

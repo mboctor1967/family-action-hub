@@ -18,6 +18,7 @@ import {
   Tag,
   Settings2,
   SlidersHorizontal,
+  ListTree,
   FileText,
   ScanLine,
   Car,
@@ -211,6 +212,17 @@ export default async function HomePage() {
                 iconColor="text-rose-600"
                 iconBg="bg-rose-50"
               />
+              <NavCard
+                title="Category Manager"
+                href="/financials/categories"
+                icon={ListTree}
+                iconColor="text-teal-600"
+                iconBg="bg-teal-50"
+                stats={[
+                  { label: 'Categories', value: '19' },
+                  { label: 'Mapped', value: '42' },
+                ]}
+              />
             </div>
           </div>
 
@@ -232,6 +244,26 @@ export default async function HomePage() {
                   { label: 'Statements', value: statementCount },
                   { label: 'Last import', value: lastImportLabel },
                 ]}
+              />
+              <NavCard
+                title="Statement Coverage"
+                href="/financials/coverage"
+                icon={CalendarDays}
+                iconColor="text-yellow-600"
+                iconBg="bg-yellow-50"
+                stats={[
+                  { label: 'Months covered', value: coverageRow },
+                ]}
+              />
+              <NavCard
+                title="Invoice Scanner"
+                href="#"
+                icon={ScanLine}
+                iconColor="text-emerald-600"
+                iconBg="bg-emerald-50"
+                external
+                badge="External"
+                disabled
               />
             </div>
           </div>
@@ -319,16 +351,6 @@ export default async function HomePage() {
                   { label: 'Monthly', value: formatAUD0(Number(activeSubsRow.monthlyCost)) },
                 ]}
               />
-              <NavCard
-                title="Statement Coverage"
-                href="/financials/coverage"
-                icon={CalendarDays}
-                iconColor="text-yellow-600"
-                iconBg="bg-yellow-50"
-                stats={[
-                  { label: 'Months covered', value: coverageRow },
-                ]}
-              />
             </div>
           </div>
 
@@ -360,16 +382,6 @@ export default async function HomePage() {
       <div>
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Other Tools</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <NavCard
-            title="Invoice Scanner"
-            href="#"
-            icon={ScanLine}
-            iconColor="text-emerald-600"
-            iconBg="bg-emerald-50"
-            external
-            badge="External"
-            disabled
-          />
           <NavCard
             title="Vehicle Logbook"
             href="/vehicles"

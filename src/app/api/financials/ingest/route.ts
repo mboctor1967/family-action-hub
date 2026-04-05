@@ -3,7 +3,9 @@ import { db } from '@/lib/db'
 import {
   accounts,
   financialAccounts,
+  financialEntities,
   financialStatements,
+  financialSubcategories,
   financialTransactions,
   parseErrors,
 } from '@/lib/db/schema'
@@ -14,6 +16,7 @@ import { parseStatementWithAI } from '@/lib/financials/ai-parse'
 import { parseCSV } from '@/lib/financials/csv-parse'
 import { parseQFX } from '@/lib/financials/qfx-parse'
 import { getModelConfig } from '@/lib/financials/constants'
+import { proposeAtoCodes, type EntityType } from '@/lib/financials/ato-proposer'
 import pLimit from 'p-limit'
 import type { IngestProgressEvent } from '@/types/financials'
 
@@ -284,24 +287,55 @@ export async function POST(request: Request) {
 
               // 6. Bulk insert transactions
               if (parsed.transactions?.length) {
-                const txnValues = parsed.transactions.map((txn: any, rowIdx: number) => ({
-                  statementId: statement.id,
-                  accountId,
-                  transactionDate: txn.transaction_date,
-                  descriptionRaw: txn.description_raw,
-                  merchantName: txn.merchant_name,
-                  amount: String(txn.amount),
-                  isDebit: txn.is_debit,
-                  runningBalance: txn.running_balance != null ? String(txn.running_balance) : null,
-                  category: txn.category,
-                  subcategory: txn.subcategory,
-                  isSubscription: txn.is_subscription || false,
-                  subscriptionFrequency: txn.subscription_frequency,
-                  isTaxDeductible: txn.is_tax_deductible || false,
-                  taxCategory: txn.tax_category,
-                  needsReview: false,
-                  rowIndex: (txn as any).row_index ?? rowIdx,
-                }))
+                // Phase F1 — fetch entity type + subcategory defaults for ATO proposal
+                const [entityRow] = await db
+                  .select({ type: financialEntities.type })
+                  .from(financialAccounts)
+                  .leftJoin(financialEntities, eq(financialAccounts.entityId, financialEntities.id))
+                  .where(eq(financialAccounts.id, accountId))
+                  .limit(1)
+                const entityType: EntityType = (entityRow?.type ?? null) as EntityType
+                const subcatsForIngest = await db.select().from(financialSubcategories)
+                const subcatByName = new Map(subcatsForIngest.map(s => [s.name, s]))
+
+                const txnValues = parsed.transactions.map((txn: any, rowIdx: number) => {
+                  // Phase F1 — propose ATO codes at ingest time
+                  const subcat = txn.subcategory ? subcatByName.get(txn.subcategory) : null
+                  const atoProposal = proposeAtoCodes(
+                    {
+                      merchantName: txn.merchant_name,
+                      descriptionRaw: txn.description_raw,
+                      amount: txn.amount,
+                      category: txn.category,
+                    },
+                    subcat
+                      ? { name: subcat.name, atoCodePersonal: subcat.atoCodePersonal, atoCodeCompany: subcat.atoCodeCompany }
+                      : null,
+                    entityType
+                  )
+
+                  return {
+                    statementId: statement.id,
+                    accountId,
+                    transactionDate: txn.transaction_date,
+                    descriptionRaw: txn.description_raw,
+                    merchantName: txn.merchant_name,
+                    amount: String(txn.amount),
+                    isDebit: txn.is_debit,
+                    runningBalance: txn.running_balance != null ? String(txn.running_balance) : null,
+                    category: txn.category,
+                    subcategory: txn.subcategory,
+                    isSubscription: txn.is_subscription || false,
+                    subscriptionFrequency: txn.subscription_frequency,
+                    isTaxDeductible: txn.is_tax_deductible || false,
+                    taxCategory: txn.tax_category,
+                    needsReview: false,
+                    rowIndex: (txn as any).row_index ?? rowIdx,
+                    // Phase F1 — AI-suggested ATO codes populated at import time
+                    aiSuggestedAtoCodePersonal: atoProposal.aiPersonal,
+                    aiSuggestedAtoCodeCompany: atoProposal.aiCompany,
+                  }
+                })
 
                 // Insert in batches to avoid query size limits
                 const batchSize = 50

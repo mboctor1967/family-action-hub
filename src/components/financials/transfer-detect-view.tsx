@@ -145,7 +145,7 @@ export function TransferDetectView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/financials')} className="text-muted-foreground hover:text-foreground">
+          <button onClick={() => router.push('/')} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>

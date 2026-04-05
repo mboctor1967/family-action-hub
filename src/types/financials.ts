@@ -33,6 +33,84 @@ export type OwnerType = typeof OWNER_TYPES[number]
 export const TAX_CATEGORIES = ['work_expense', 'investment', 'donation'] as const
 export type TaxCategory = typeof TAX_CATEGORIES[number]
 
+// =====================
+// Phase F1 — Tax Prep types
+// =====================
+
+export type AtoScope = 'personal' | 'company'
+export type AtoSection = 'income' | 'deduction' | 'expense' | 'other'
+
+export interface AtoCode {
+  code: string
+  scope: AtoScope
+  section: AtoSection
+  label: string
+  description: string | null
+  sortOrder: number
+  isInternalSubcode: boolean
+  rollsUpTo: string | null
+}
+
+export interface InvoiceFile {
+  gdriveFileId: string
+  filename: string
+  driveUrl: string
+  mimeType: string
+  modifiedTime: string
+  sizeBytes: number | null
+  tag: InvoiceTag | null
+}
+
+export interface InvoiceTag {
+  supplier: string | null
+  amount: number | null
+  atoCodePersonal: string | null
+  atoCodeCompany: string | null
+  linkedTxnId: string | null
+  matchStatus: 'matched' | 'unmatched' | 'verified'
+  notes: string | null
+}
+
+export type ExportJobStatus = 'pending' | 'running' | 'complete' | 'error' | 'cancelled'
+
+export interface ExportJob {
+  id: string
+  fy: string
+  status: ExportJobStatus
+  progressPercent: number
+  currentStep: string | null
+  blobUrl: string | null
+  errorMessage: string | null
+  createdAt: string
+  completedAt: string | null
+  expiresAt: string
+}
+
+export interface ExportProgressEvent {
+  type: 'progress' | 'complete' | 'error'
+  step?: string
+  percent?: number
+  blobUrl?: string
+  expiresAt?: string
+  message?: string
+}
+
+export interface AiCostEstimate {
+  model: string
+  pricing: { inputPer1M: number; outputPer1M: number; currency: string; asOf: string }
+  estimates: {
+    perImport: { txnCount: number; cost: number }
+    monthly: { txnCount: number; cost: number }
+    backfill?: { txnCount: number; cost: number }
+  }
+  currentSetting: { enabled: boolean }
+}
+
+export interface AtoProposal {
+  aiPersonal: string | null
+  aiCompany: string | null
+}
+
 export const SUBSCRIPTION_FREQUENCIES = ['monthly', 'annual', 'weekly'] as const
 export type SubscriptionFrequency = typeof SUBSCRIPTION_FREQUENCIES[number]
 

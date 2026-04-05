@@ -18,6 +18,7 @@ export async function PATCH(
   if (body.name !== undefined) allowedFields.name = body.name
   if (body.type !== undefined) allowedFields.type = body.type
   if (body.color !== undefined) allowedFields.color = body.color
+  if (body.invoiceDriveFolder !== undefined) allowedFields.invoiceDriveFolder = body.invoiceDriveFolder || null
 
   if (Object.keys(allowedFields).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })

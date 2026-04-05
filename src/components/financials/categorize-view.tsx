@@ -80,10 +80,6 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
   const [sortBy, setSortBy] = useState<'amount' | 'txns'>('amount')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [bulkCategory, setBulkCategory] = useState('')
-  const [showCatManager, setShowCatManager] = useState(false)
-  const [editingCat, setEditingCat] = useState<DBCategory | null>(null)
-  const [newCatName, setNewCatName] = useState('')
-  const [newCatSubs, setNewCatSubs] = useState('')
   const [changes, setChanges] = useState<Map<string, string>>(new Map())
   const [stats, setStats] = useState({ uncategorized: 0, categorized: 0, total: 0 })
   const [expandedMerchant, setExpandedMerchant] = useState<string | null>(null)
@@ -191,39 +187,6 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
     setAiSuggestions(prev => { const next = { ...prev }; delete next[merchantName]; return next })
   }
 
-  async function addCategory() {
-    if (!newCatName.trim()) return
-    const subs = newCatSubs.split(',').map(s => s.trim()).filter(Boolean)
-    const res = await fetch('/api/financials/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newCatName.trim(), subcategories: subs }),
-    })
-    if (res.ok) {
-      toast.success('Category added')
-      setNewCatName(''); setNewCatSubs('')
-      loadMerchants()
-    } else toast.error((await res.json()).error || 'Failed')
-  }
-
-  async function deleteCategory(id: string, name: string) {
-    if (!confirm(`Delete category "${name}"? Merchants using this category will become uncategorized.`)) return
-    const res = await fetch(`/api/financials/categories/${id}`, { method: 'DELETE' })
-    if (res.ok) { toast.success('Deleted'); loadMerchants() }
-    else toast.error('Failed')
-  }
-
-  async function updateCategory(id: string, name: string, subs: string) {
-    const subcategories = subs.split(',').map(s => s.trim()).filter(Boolean)
-    const res = await fetch(`/api/financials/categories/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, subcategories }),
-    })
-    if (res.ok) { toast.success('Updated'); setEditingCat(null); loadMerchants() }
-    else toast.error((await res.json()).error || 'Failed')
-  }
-
   function applyBulkCategory() {
     if (!bulkCategory || bulkCategory === 'OTHER') return
     const newChanges = new Map(changes)
@@ -326,7 +289,7 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {!embedded && (
-            <button onClick={() => router.push('/financials')} className="text-muted-foreground hover:text-foreground">
+            <button onClick={() => router.push('/')} className="text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
@@ -366,75 +329,6 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
           <p className="text-2xl font-bold text-green-700">{stats.categorized + changes.size}</p>
           <p className="text-xs text-green-600">Categorized</p>
         </div>
-      </div>
-
-      {/* Category Manager — collapsible */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setShowCatManager(!showCatManager)}
-          className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 text-xs font-medium text-muted-foreground"
-        >
-          <span>Manage Categories ({dbCategories.length})</span>
-          {showCatManager ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        </button>
-        {showCatManager && (
-          <div className="px-3 pb-3 space-y-2 border-t border-gray-100 pt-2">
-            {/* Existing categories */}
-            <div className="space-y-1 max-h-48 overflow-y-auto">
-              {dbCategories.map((cat) => (
-                <div key={cat.id} className="flex items-center gap-2 text-xs py-1">
-                  {editingCat?.id === cat.id ? (
-                    <>
-                      <input
-                        defaultValue={cat.name}
-                        className="h-6 w-40 px-1.5 text-xs border rounded"
-                        id={`edit-cat-${cat.id}`}
-                      />
-                      <input
-                        defaultValue={cat.subcategories.map(s => s.name).join(', ')}
-                        className="h-6 flex-1 px-1.5 text-xs border rounded"
-                        placeholder="Subcategories (comma separated)"
-                        id={`edit-subs-${cat.id}`}
-                      />
-                      <button className="text-green-600 hover:underline text-[10px]" onClick={() => {
-                        const name = (document.getElementById(`edit-cat-${cat.id}`) as HTMLInputElement)?.value
-                        const subs = (document.getElementById(`edit-subs-${cat.id}`) as HTMLInputElement)?.value
-                        updateCategory(cat.id, name, subs)
-                      }}>save</button>
-                      <button className="text-muted-foreground hover:underline text-[10px]" onClick={() => setEditingCat(null)}>cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-medium w-44 shrink-0">{cat.name}</span>
-                      <span className="text-muted-foreground flex-1 truncate">
-                        {cat.subcategories.map(s => s.name).join(', ') || '—'}
-                      </span>
-                      <button className="text-blue-600 hover:underline text-[10px] shrink-0" onClick={() => setEditingCat(cat)}>edit</button>
-                      <button className="text-red-500 hover:underline text-[10px] shrink-0" onClick={() => deleteCategory(cat.id, cat.name)}>delete</button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            {/* Add new */}
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-              <input
-                value={newCatName}
-                onChange={(e) => setNewCatName(e.target.value)}
-                placeholder="New category name"
-                className="h-7 w-40 px-2 text-xs border rounded"
-              />
-              <input
-                value={newCatSubs}
-                onChange={(e) => setNewCatSubs(e.target.value)}
-                placeholder="Subcategories (comma separated)"
-                className="h-7 flex-1 px-2 text-xs border rounded"
-              />
-              <Button size="sm" className="h-7 text-xs" onClick={addCategory} disabled={!newCatName.trim()}>Add</Button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Filters */}

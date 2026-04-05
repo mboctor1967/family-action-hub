@@ -70,7 +70,7 @@ export function AccountsTab() {
   // Entity dialogs
   const [showNewEntity, setShowNewEntity] = useState(false)
   const [editingEntity, setEditingEntity] = useState<Entity | null>(null)
-  const [entityForm, setEntityForm] = useState({ name: '', type: 'personal', color: '#2B579A' })
+  const [entityForm, setEntityForm] = useState({ name: '', type: 'personal', color: '#2B579A', invoiceDriveFolder: '' })
 
   // Account dialogs
   const [showNewAccount, setShowNewAccount] = useState(false)
@@ -101,12 +101,17 @@ export function AccountsTab() {
 
   // --- Entity CRUD ---
   function openNewEntity() {
-    setEntityForm({ name: '', type: 'personal', color: '#2B579A' })
+    setEntityForm({ name: '', type: 'personal', color: '#2B579A', invoiceDriveFolder: '' })
     setShowNewEntity(true)
   }
 
   function openEditEntity(e: Entity) {
-    setEntityForm({ name: e.name, type: e.type, color: e.color })
+    setEntityForm({
+      name: e.name,
+      type: e.type,
+      color: e.color,
+      invoiceDriveFolder: (e as any).invoiceDriveFolder ?? '',
+    })
     setEditingEntity(e)
   }
 
@@ -281,6 +286,18 @@ export function AccountsTab() {
                 className="mt-1 h-9 p-1"
               />
             </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Invoice Drive Folder (optional)</label>
+            <Input
+              value={entityForm.invoiceDriveFolder}
+              onChange={(e) => setEntityForm({ ...entityForm, invoiceDriveFolder: e.target.value })}
+              placeholder="Paste Drive folder URL or ID (for tax prep export)"
+              className="mt-1 text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Used by Tax Prep → Invoices to bundle supplier invoices for this entity. Open the Drive folder, click "Share → Copy link", paste here.
+            </p>
           </div>
         </div>
         <DialogFooter>

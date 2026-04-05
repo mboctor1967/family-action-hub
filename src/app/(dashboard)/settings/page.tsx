@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Mail, CheckCircle2, Plus, Scan, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import { AiCostPanel } from '@/components/settings/ai-cost-panel'
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -85,6 +86,9 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Phase F1 — AI cost transparency panel */}
+      {(session?.user as any)?.role === 'admin' && <AiCostPanel />}
 
       {/* Show prominent CTA when Gmail is connected */}
       {gmailAccounts.length > 0 && (

@@ -24,8 +24,19 @@ Apply the versioning rules from CLAUDE.md:
   Breaking API/schema change  → --major  (x.0.0)
   Refactor only               → --patch  (0.0.x)
 
-Present the proposed version bump and rationale.
-Wait for confirmation before proceeding.
+Present the proposed version bump and rationale, then show the options menu:
+
+  Current version: v____
+  Recommended: --<level> → v____
+  Rationale: <one line>
+  
+  What bump would you like?
+    [A] Patch  — v____
+    [B] Minor  — v____
+    [C] Major  — v____
+    [D] Skip version bump (WIP / experimental only — not recommended for full release)
+
+Wait for the user's choice. Do not proceed until confirmed.
 
 Confirmed new version: v_____
 
@@ -176,9 +187,10 @@ If any item is NO: stop. Resolve it. Do not commit.
 Present gate status with each item checked.
 Wait for my confirmation before drafting the commit.
 
-## Step 7 — Draft Git Commit
+## Step 7 — Draft Git Commit + Commit Menu
 
-  git add .
+Draft the commit message and tag first:
+
   git commit -m "feat(<app>): <description> v<version>
 
   <2-3 sentence summary of what was built>
@@ -194,8 +206,24 @@ Wait for my confirmation before drafting the commit.
 
   git tag v<new version>
 
-Present the commit message and tag for my review.
-Do not run git commands until I confirm.
+Present the drafted message, the list of staged files, and this menu:
+
+  What would you like me to do?
+    [A] Stop here — I'll handle commit manually later (leave everything staged)
+    [B] Commit only (local, no push, no tag)
+    [C] Commit + tag v<version> (local, no push)
+    [D] Commit + tag + push to origin (stop before Vercel gate)
+    [E] Commit + tag + push + run the PRE-DEPLOY GATE (Step 8)
+    [F] Full pipeline — Commit + tag + push + deploy gate + Vercel deploy + smoke tests (Steps 8+9)
+    [G] Custom — tell me exactly which steps to run
+
+Wait for the user's choice. Do NOT run git commands until they pick.
+
+For [A]/[B]/[C]/[D] the flow stops at that point. Remind the user what
+still needs to happen (push, deploy gate, smoke tests) so nothing is
+forgotten.
+
+For [E] and [F], continue into Step 8 after the push completes.
 
 ## Step 8 — PRE-DEPLOY GATE (Vercel)
 

@@ -400,7 +400,7 @@ export function ImportView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/financials')} className="text-muted-foreground hover:text-foreground">
+          <button onClick={() => router.push('/')} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h2 className="text-xl font-bold">Import Bank Statements</h2>
@@ -704,7 +704,7 @@ export function ImportView() {
           <p className="text-sm text-muted-foreground">
             All {scanResult.already_imported.length} files in your Drive folder are already imported.
           </p>
-          <Button variant="outline" onClick={() => router.push('/financials')}>Back to Financials</Button>
+          <Button variant="outline" onClick={() => router.push('/')}>Back to Financials</Button>
         </div>
       )}
 
@@ -788,7 +788,7 @@ export function ImportView() {
                 <Building2 className="h-4 w-4" />
                 Map to Accounts
               </Button>
-              <Button variant="outline" onClick={() => router.push('/financials')}>
+              <Button variant="outline" onClick={() => router.push('/')}>
                 Skip — Go to Financials
               </Button>
             </div>
@@ -959,7 +959,7 @@ export function ImportView() {
           )}
 
           <div className="flex gap-3 justify-center pt-2">
-            <Button onClick={() => router.push('/financials')} className="gap-2">
+            <Button onClick={() => router.push('/')} className="gap-2">
               <CheckCircle2 className="h-4 w-4" />
               Done — Go to Financials
             </Button>

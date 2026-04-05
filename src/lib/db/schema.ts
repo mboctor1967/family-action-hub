@@ -235,7 +235,9 @@ export const financialSubcategories = pgTable('financial_subcategories', {
   id: uuid('id').primaryKey().defaultRandom(),
   categoryId: uuid('category_id').notNull().references(() => financialCategories.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  atoCode: text('ato_code'), // e.g. D1-D15 for individuals, business schedule codes — populated later
+  atoCode: text('ato_code'), // legacy — kept for backward compat, superseded by personal/company columns (Phase F1)
+  atoCodePersonal: text('ato_code_personal'), // Individual Tax Return code (Phase F1)
+  atoCodeCompany: text('ato_code_company'), // Company Tax Return Item 6 code (Phase F1)
   sortOrder: integer('sort_order').default(0),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
@@ -257,6 +259,7 @@ export const financialEntities = pgTable('financial_entities', {
   type: text('type').notNull().default('personal'), // personal, business, trust
   color: text('color').default('#2B579A'),
   sortOrder: integer('sort_order').default(0),
+  invoiceDriveFolder: text('invoice_drive_folder'), // Phase F1 — Drive folder path for invoice bundling
   createdAt: timestamp('created_at').defaultNow(),
 })
 
@@ -323,6 +326,11 @@ export const financialTransactions = pgTable('financial_transactions', {
   gstApplicable: boolean('gst_applicable').default(false),
   transferPairId: uuid('transfer_pair_id'), // links matching transfer pairs
   aiSuggestedCategory: text('ai_suggested_category'), // AI-suggested category pending user review
+  // Phase F1 — ATO code classification (mirrors the category/aiSuggestedCategory pattern)
+  atoCodePersonal: text('ato_code_personal'), // confirmed personal ATO code
+  aiSuggestedAtoCodePersonal: text('ai_suggested_ato_code_personal'),
+  atoCodeCompany: text('ato_code_company'), // confirmed company ATO code
+  aiSuggestedAtoCodeCompany: text('ai_suggested_ato_code_company'),
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   uniqueIndex('fin_txn_dedup').on(table.accountId, table.transactionDate, table.amount, table.descriptionRaw, table.rowIndex),
@@ -331,6 +339,8 @@ export const financialTransactions = pgTable('financial_transactions', {
   index('idx_fin_txn_statement').on(table.statementId),
   index('idx_fin_txn_category').on(table.category),
   index('idx_fin_txn_transfer_pair').on(table.transferPairId),
+  index('idx_fin_txn_ato_personal').on(table.atoCodePersonal),
+  index('idx_fin_txn_ato_company').on(table.atoCodeCompany),
 ])
 
 // Transaction Splits (v4) — one parent transaction can be split across multiple categories/entities
@@ -405,4 +415,75 @@ export const transactionSplitsRelations = relations(transactionSplits, ({ one })
 
 export const financialAssumptionsRelations = relations(financialAssumptions, ({ one }) => ({
   entity: one(financialEntities, { fields: [financialAssumptions.entityId], references: [financialEntities.id] }),
+}))
+
+// =====================
+// Phase F1 — Tax Prep / Accountant Pack
+// =====================
+
+// ATO Codes reference table (seeded from src/lib/financials/ato-codes.ts)
+export const atoCodes = pgTable('ato_codes', {
+  code: text('code').primaryKey(), // e.g. 'D1', '6-MV', '6-OTHER-SUBS'
+  scope: text('scope').notNull(), // 'personal' | 'company'
+  section: text('section').notNull(), // 'income' | 'deduction' | 'expense' | 'other'
+  label: text('label').notNull(),
+  description: text('description'),
+  sortOrder: integer('sort_order').default(0),
+  isInternalSubcode: boolean('is_internal_subcode').default(false), // true for 6-OTHER-* rollups
+  rollsUpTo: text('rolls_up_to'), // e.g. '6-OTHER-EXP' for internal sub-codes
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  index('idx_ato_codes_scope').on(table.scope),
+])
+
+// App Settings — key-value store for shared admin configuration
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value'),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  updatedBy: uuid('updated_by').references(() => profiles.id, { onDelete: 'set null' }),
+})
+
+// Invoice Tags — metadata for files in per-entity Drive folders (F1↔F2 contract)
+export const invoiceTags = pgTable('invoice_tags', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  gdriveFileId: text('gdrive_file_id').notNull().unique(),
+  entityId: uuid('entity_id').references(() => financialEntities.id, { onDelete: 'set null' }),
+  fy: text('fy').notNull(), // 'FY2025-26'
+  filename: text('filename').notNull(),
+  supplier: text('supplier'),
+  amount: numeric('amount', { precision: 12, scale: 2 }),
+  atoCodePersonal: text('ato_code_personal'),
+  atoCodeCompany: text('ato_code_company'),
+  linkedTxnId: uuid('linked_txn_id').references(() => financialTransactions.id, { onDelete: 'set null' }),
+  matchStatus: text('match_status').default('unmatched'), // 'matched' | 'unmatched' | 'verified'
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => [
+  index('idx_invoice_tags_entity_fy').on(table.entityId, table.fy),
+  index('idx_invoice_tags_linked_txn').on(table.linkedTxnId),
+])
+
+// Export Jobs — registry for SSE-streamed tax prep exports
+export const exportJobs = pgTable('export_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  fy: text('fy').notNull(),
+  requestedBy: uuid('requested_by').references(() => profiles.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('pending'), // 'pending' | 'running' | 'complete' | 'error' | 'cancelled'
+  progressPercent: integer('progress_percent').default(0),
+  currentStep: text('current_step'),
+  blobUrl: text('blob_url'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow(),
+  completedAt: timestamp('completed_at'),
+  expiresAt: timestamp('expires_at').notNull(),
+}, (table) => [
+  index('idx_export_jobs_status').on(table.status),
+  index('idx_export_jobs_expires').on(table.expiresAt),
+])
+
+export const invoiceTagsRelations = relations(invoiceTags, ({ one }) => ({
+  entity: one(financialEntities, { fields: [invoiceTags.entityId], references: [financialEntities.id] }),
+  linkedTxn: one(financialTransactions, { fields: [invoiceTags.linkedTxnId], references: [financialTransactions.id] }),
 }))
