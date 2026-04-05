@@ -168,6 +168,9 @@ Run through this checklist. Every item must be YES before committing.
   [ ] No CRITICAL or HIGH defects open
   [ ] lint passing: <run lint command>
   [ ] type-check passing: <run tsc --noEmit>
+  [ ] EVIDENCE RULE: Every claim above must show actual command output.
+      "Tests pass" means show the test run. "Build succeeds" means show the build output.
+      No assertions without evidence. If you didn't run it, you can't check it off.
 
 If any item is NO: stop. Resolve it. Do not commit.
 

@@ -42,6 +42,22 @@ For each task in this wave, spawn the assigned sub-agent with:
 - The acceptance criteria from /docs/requirements.md that this task covers
 - The definition of done: tests passing, doc checkbox ticked
 
+**TDD Discipline (non-negotiable for every task):**
+
+Every task that involves writing code must follow RED-GREEN-REFACTOR:
+1. Write the test FIRST
+2. Run the test — WATCH IT FAIL (this proves the test actually tests something)
+3. If the test passes before implementation: the test is wrong. Fix the test.
+4. Write the minimal implementation
+5. Run the test — confirm it passes
+6. Refactor if needed, tests still pass
+
+Rationalization traps (sub-agents must not fall for these):
+- "This is too simple for a test" → Write the test. Simple code has simple tests.
+- "I'll add tests after" → No. Test first or not at all.
+- "The test would just duplicate the implementation" → Then the test is wrong. Test behavior, not code.
+- "It's just a UI change" → Verify the build. Check the render.
+
 **B. Dispatch parallel agents**
 
 For [PARALLEL] tasks in the same wave: spawn all at once.

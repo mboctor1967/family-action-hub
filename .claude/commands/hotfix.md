@@ -23,12 +23,18 @@ Report back:
 
 ## Step 2 — Fix with TDD
 
-Follow Superpowers TDD skill:
+Follow /project:debug methodology for root cause tracing, then:
 1. Write a test that fails because of this bug
-2. Confirm it fails
-3. Fix the bug
-4. Confirm the test passes
-5. Run the full test suite — confirm nothing regressed
+2. Run it — WATCH IT FAIL (proves the test catches the bug)
+3. If the test passes before the fix: the test is wrong. Fix the test.
+4. Fix the bug (the root cause, not the symptom)
+5. Run the test — confirm it passes
+6. Run the full test suite — confirm nothing regressed (show output)
+
+Do NOT:
+- Add a null check to hide the real problem
+- Add a try/catch to swallow the error
+- "Fix" it without understanding why it broke
 
 ## Step 3 — Update the Relevant Doc (only if needed)
 
