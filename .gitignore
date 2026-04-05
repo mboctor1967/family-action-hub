@@ -44,3 +44,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Claude Code local settings (never commit — contains local permission allowlist which may embed secrets)
+.claude/settings.local.json
