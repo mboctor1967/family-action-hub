@@ -12,11 +12,17 @@
 
 import { auth } from '@/lib/auth'
 import { getDriveTokenForUser } from '@/lib/gdrive/tokens'
-import { scanSupplierInvoices } from '@/lib/financials/invoice-scanner'
+import { scanSupplierInvoices, scanAllSuppliers } from '@/lib/financials/invoice-scanner'
 import type { ScanProgressEvent } from '@/types/financials'
 
 export const maxDuration = 300 // 5 minutes
 
+/**
+ * POST /api/financials/invoices/scan
+ *
+ * Body: { supplierId: string } — scan one supplier
+ * OR:   { fy: string }         — scan ALL active suppliers for that FY (query-based, ignores labels)
+ */
 export async function POST(request: Request) {
   const session = await auth()
   if (!session?.user?.id) {
@@ -28,8 +34,10 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}))
   const supplierId: string | undefined = body?.supplierId
-  if (!supplierId) {
-    return new Response(JSON.stringify({ error: 'supplierId is required' }), { status: 400 })
+  const fy: string | undefined = body?.fy
+
+  if (!supplierId && !fy) {
+    return new Response(JSON.stringify({ error: 'supplierId or fy is required' }), { status: 400 })
   }
 
   const token = await getDriveTokenForUser(session.user.id)
@@ -43,9 +51,7 @@ export async function POST(request: Request) {
       const send = (event: ScanProgressEvent) => {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
-        } catch {
-          // stream closed
-        }
+        } catch {}
       }
 
       const heartbeat = setInterval(() => {
@@ -55,19 +61,24 @@ export async function POST(request: Request) {
       }, 10000)
 
       try {
-        const result = await scanSupplierInvoices(
-          { supplierId, token },
-          async (event) => send(event)
-        )
-
-        send({
-          type: 'complete',
-          emailsFound: result.emailsFound,
-          invoicesExtracted: result.invoicesExtracted,
-          message: result.errors.length > 0
-            ? `Completed with ${result.errors.length} error(s): ${result.errors[0]}`
-            : `Done: ${result.invoicesExtracted} invoices from ${result.emailsFound} emails (${result.duplicatesSkipped} duplicates skipped)`,
-        })
+        if (fy) {
+          // Scan ALL suppliers for the given FY
+          await scanAllSuppliers(fy, token, async (event) => send(event))
+        } else {
+          // Scan a single supplier
+          const result = await scanSupplierInvoices(
+            { supplierId: supplierId!, token },
+            async (event) => send(event)
+          )
+          send({
+            type: 'complete',
+            emailsFound: result.emailsFound,
+            invoicesExtracted: result.invoicesExtracted,
+            message: result.errors.length > 0
+              ? `Completed with ${result.errors.length} error(s): ${result.errors[0]}`
+              : `Done: ${result.invoicesExtracted} invoices from ${result.emailsFound} emails (${result.duplicatesSkipped} duplicates skipped)`,
+          })
+        }
       } catch (err: any) {
         send({ type: 'error', message: err?.message ?? String(err) })
       } finally {

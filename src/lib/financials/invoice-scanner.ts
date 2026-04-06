@@ -46,6 +46,180 @@ export type ScanOnProgress = (event: ScanProgressEvent) => void | Promise<void>
 /**
  * Scan Gmail for invoices from a single supplier and save results to DB.
  */
+/**
+ * Scan ALL active suppliers for a given FY. Uses query-based search (sender emails + keywords).
+ * Skips suppliers with no sender emails (they need manual config first).
+ */
+export async function scanAllSuppliers(
+  fy: string,
+  token: DriveToken,
+  onProgress: ScanOnProgress = () => {}
+): Promise<ScanResult> {
+  const fyRange = parseFy(fy)
+  const allSuppliers = await db.select().from(invoiceSuppliers).where(eq(invoiceSuppliers.isActive, true))
+
+  // Filter to suppliers that have sender emails (query-based search requires them)
+  const scannable = allSuppliers.filter(s => {
+    const emails = (s.senderEmails as string[]) || []
+    return emails.length > 0
+  })
+
+  const skipped = allSuppliers.length - scannable.length
+
+  await onProgress({
+    type: 'progress',
+    step: `Found ${scannable.length} scannable suppliers (${skipped} skipped — no sender emails)`,
+    percent: 2,
+  })
+
+  const totalResult: ScanResult = {
+    emailsFound: 0,
+    emailsProcessed: 0,
+    invoicesExtracted: 0,
+    duplicatesSkipped: 0,
+    errors: [],
+  }
+
+  if (scannable.length === 0) {
+    await onProgress({ type: 'complete', emailsFound: 0, invoicesExtracted: 0, message: 'No suppliers with sender emails configured' })
+    return totalResult
+  }
+
+  for (let i = 0; i < scannable.length; i++) {
+    const supplier = scannable[i]
+    const basePct = 5 + Math.round((90 * i) / scannable.length)
+
+    await onProgress({
+      type: 'progress',
+      step: `Scanning ${supplier.name} (${i + 1}/${scannable.length})`,
+      percent: basePct,
+    })
+
+    try {
+      // Override the supplier's FY with the user-selected FY
+      const senderEmails = (supplier.senderEmails as string[]) || []
+      const keywords = (supplier.keywords as string[]) || []
+
+      const { messageIds } = await searchGmailByQuery(token, {
+        senderEmails,
+        keywords: keywords.length > 0 ? keywords : undefined,
+        startDate: new Date(fyRange.startDate),
+        endDate: new Date(fyRange.endDate),
+      }, 500)
+
+      totalResult.emailsFound += messageIds.length
+
+      await onProgress({
+        type: 'progress',
+        step: `${supplier.name}: ${messageIds.length} emails found`,
+        percent: basePct + Math.round(10 / scannable.length),
+      })
+
+      // Process each email (same logic as single-supplier scan)
+      for (let j = 0; j < messageIds.length; j++) {
+        const msgId = messageIds[j]
+        try {
+          // Dedup
+          const existing = await db.select({ id: invoices.id }).from(invoices).where(eq(invoices.sourceEmailId, msgId)).limit(1)
+          if (existing.length > 0) { totalResult.duplicatesSkipped++; continue }
+
+          const email = await getEmailContent(token, msgId)
+          let textContent = email.htmlBody ? htmlToText(email.htmlBody) : email.textBody
+
+          const attachmentFilenames: string[] = []
+          const attachmentTexts: string[] = []
+          let pdfBuffer: Buffer | null = null
+
+          for (const att of email.attachments) {
+            attachmentFilenames.push(att.filename)
+            if (att.mimeType === 'application/pdf') {
+              try {
+                const buf = await downloadAttachment(token, msgId, att.attachmentId)
+                const pdfParse = (await import('pdf-parse')).default
+                const pdfData = await pdfParse(buf)
+                if (pdfData.text) { attachmentTexts.push(pdfData.text); textContent += '\n' + pdfData.text }
+                if (!pdfBuffer) pdfBuffer = buf
+              } catch {}
+            }
+          }
+
+          // Keyword match (still useful to filter noise even with sender-based search)
+          if (keywords.length > 0) {
+            const kwMatch = findKeywordMatch(email.subject, textContent, attachmentFilenames, attachmentTexts, keywords)
+            if (!kwMatch.matched) { totalResult.emailsProcessed++; continue }
+          }
+
+          if (!isTransactionalEmail(email.subject, textContent)) { totalResult.emailsProcessed++; continue }
+
+          const extracted = extractInvoiceFields(email.subject, textContent)
+          if (!['Invoice', 'Receipt'].includes(extracted.emailType)) {
+            extracted.emailType = 'Invoice' // default for sender-matched emails
+          }
+
+          // Upload PDF
+          let pdfBlobUrl: string | null = null
+          if (pdfBuffer) {
+            try {
+              const safeName = `${email.date?.toISOString().split('T')[0] ?? 'unknown'}_${supplier.name.replace(/[^a-zA-Z0-9]/g, '_')}_${extracted.invoiceNumber ?? j}.pdf`
+              const blob = await put(`invoices/${fy}/${safeName}`, pdfBuffer, { access: 'public', contentType: 'application/pdf', addRandomSuffix: true })
+              pdfBlobUrl = blob.url
+            } catch {}
+          }
+
+          // Save to DB
+          await db.insert(invoices).values({
+            supplierId: supplier.id,
+            entityId: supplier.entityId,
+            fy,
+            invoiceNumber: extracted.invoiceNumber,
+            invoiceDate: extracted.invoiceDate,
+            purchaseDate: extracted.purchaseDate,
+            serviceDate: extracted.serviceDate,
+            referenceNumber: extracted.referenceNumber,
+            supplierName: supplier.name,
+            location: extracted.location,
+            serviceType: extracted.serviceType,
+            description: extracted.description,
+            emailType: extracted.emailType,
+            subTotal: extracted.subTotal !== null ? String(extracted.subTotal) : null,
+            gstAmount: extracted.gstAmount !== null ? String(extracted.gstAmount) : null,
+            totalAmount: extracted.totalAmount !== null ? String(extracted.totalAmount) : null,
+            pdfBlobUrl,
+            sourceEmailId: msgId,
+            sourceEmailDate: email.date,
+            sourceFrom: email.from,
+            atoCode: supplier.defaultAtoCode,
+            status: 'extracted',
+            rawText: textContent.slice(0, 50000),
+          })
+
+          totalResult.invoicesExtracted++
+        } catch (err: any) {
+          totalResult.errors.push(`${supplier.name} email ${j + 1}: ${err?.message ?? String(err)}`)
+        }
+        totalResult.emailsProcessed++
+      }
+
+      // Update lastScannedAt
+      await db.update(invoiceSuppliers).set({ lastScannedAt: new Date() }).where(eq(invoiceSuppliers.id, supplier.id))
+    } catch (err: any) {
+      totalResult.errors.push(`${supplier.name}: ${err?.message ?? String(err)}`)
+    }
+  }
+
+  await onProgress({
+    type: 'complete',
+    emailsFound: totalResult.emailsFound,
+    invoicesExtracted: totalResult.invoicesExtracted,
+    message: `Done: ${totalResult.invoicesExtracted} invoices from ${totalResult.emailsFound} emails across ${scannable.length} suppliers (${totalResult.duplicatesSkipped} dupes skipped${skipped > 0 ? `, ${skipped} suppliers without sender emails skipped` : ''})`,
+  })
+
+  return totalResult
+}
+
+/**
+ * Scan a single supplier (original function).
+ */
 export async function scanSupplierInvoices(
   input: ScanInput,
   onProgress: ScanOnProgress = () => {}
