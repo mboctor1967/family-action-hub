@@ -153,7 +153,10 @@ export function extractInvoiceFields(
   if (!invoiceNumber) {
     const invMatch =
       t.match(/Invoice\s+(?:number|no\.?|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,30})/i) ||
-      t.match(/(?:Order|Reference|Document|Bill)\s*(?:No\.?|Number|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,30})/i)
+      t.match(/(?:Order|Reference|Document|Bill)\s*(?:No\.?|Number|#|ID)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,30})/i) ||
+      // Apple format: "Order ID: MMWHLGYWX3" or "Document: 774113700749"
+      t.match(/Order\s+ID[:\-]?\s*([A-Z0-9]{6,})/i) ||
+      t.match(/Document[:\-]?\s*(\d{8,})/i)
     if (invMatch) invoiceNumber = invMatch[1].trim()
   }
 
@@ -185,15 +188,23 @@ export function extractInvoiceFields(
     t.match(/Purchased\s+(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})/i) ||
     t.match(/Invoice\s+date[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/i) ||
     t.match(/Invoice\s+date[:\-]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i) ||
-    t.match(/Issued\s+on\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i)
+    t.match(/Issued\s+on\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i) ||
+    // Apple "Tax Invoice DD Month YYYY" format (appears at start of text)
+    t.match(/Tax Invoice\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i) ||
+    // Generic "DD Month YYYY" at start of text (common in subscription invoices)
+    t.match(/^(?:Tax Invoice\s+)?(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i)
   if (purchMatch) purchaseDate = parseDateStr(purchMatch[1].trim())
 
-  // ── Total amount — multiple patterns
+  // ── Total amount — multiple patterns (ordered from most specific to most generic)
   const totalMatch1 = t.match(/\bTotal,?\s+including\s+GST\s*\$?\s*([\d,]+\.\d{2})/i)
   const totalMatch2 = t.match(/(?:Grand\s+)?\bTotal\b(?:\s+[Aa]mount)?(?:,?\s+including\s+GST)?\s*[:\-]?\s*(?:[A-Z]{2,3}\s+)?\$?\s*([\d,]+\.\d{2})/i)
   const totalMatch3 = t.match(/Amount\s*(?:due|paid|charged|payable)?\s*[:\-]?\s*(?:[A-Z]{2,3}\s+)?\$?\s*([\d,]+\.\d{2})/i)
   const totalMatch4 = t.match(/(?:Total|Amount)\s+[A-Z]{2,3}\s+([\d,]+\.\d{2})/i)
-  const rawTotal = (totalMatch1 || totalMatch2 || totalMatch3 || totalMatch4)?.[1]
+  // Apple/subscription format: "Billed to" line preceded by a price like "$22.99"
+  const totalMatch5 = t.match(/\$([\d,]+\.\d{2})\s*(?:Billed?\s+to|You were charged|Your total)/i)
+  // Bare price format: "$XX.XX" appearing in short invoice text (< 2000 chars = not marketing)
+  const totalMatch6 = t.length < 3000 ? t.match(/\$([\d,]+\.\d{2})/) : null
+  const rawTotal = (totalMatch1 || totalMatch2 || totalMatch3 || totalMatch4 || totalMatch5 || totalMatch6)?.[1]
   if (rawTotal) totalAmount = parseFloat(rawTotal.replace(/,/g, ''))
 
   // ── GST

@@ -20,6 +20,7 @@ export function InvoicesListTab() {
   const [scanPct, setScanPct] = useState(0)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
 
@@ -241,76 +242,95 @@ export function InvoicesListTab() {
 
       {invoices.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm">
-          No invoices found for {fy}. Run a scan from the Suppliers tab first.
+          No invoices found for {fy}. Click "Scan All" above to search Gmail.
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
-                  <th className="text-left px-4 py-2">Date</th>
-                  <th className="text-left px-4 py-2">Supplier</th>
-                  <th className="text-left px-4 py-2">Invoice #</th>
-                  <th className="text-left px-4 py-2">Type</th>
-                  <th className="text-right px-4 py-2">Amount</th>
-                  <th className="text-right px-4 py-2">GST</th>
-                  <th className="text-left px-4 py-2">ATO</th>
-                  <th className="text-center px-4 py-2">Status</th>
-                  <th className="text-center px-4 py-2">PDF</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {invoices.map(inv => {
-                  const isExpanded = expandedId === inv.id
-                  return (
-                    <>{/* eslint-disable-next-line react/jsx-key */}
-                    <tr key={inv.id} className={`cursor-pointer ${isExpanded ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}`}
-                      onClick={() => setExpandedId(isExpanded ? null : inv.id)}>
-                      <td className="px-4 py-2 text-xs text-gray-700 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1">
-                          {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                          {inv.invoiceDate || (inv.sourceEmailDate as any)?.toString?.().slice(0, 10) || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-xs font-medium text-gray-900 max-w-[200px] truncate">
-                        {inv.supplierName ?? '—'}
-                      </td>
-                      <td className="px-4 py-2 text-xs text-gray-700">{inv.invoiceNumber ?? '—'}</td>
-                      <td className="px-4 py-2"><TypeBadge type={inv.emailType} /></td>
-                      <td className="px-4 py-2 text-xs text-right font-medium text-gray-900">
-                        {inv.totalAmount != null ? formatAUD(Number(inv.totalAmount)) : '—'}
-                      </td>
-                      <td className="px-4 py-2 text-xs text-right text-muted-foreground">
-                        {inv.gstAmount != null ? formatAUD(Number(inv.gstAmount)) : '—'}
-                      </td>
-                      <td className="px-4 py-2 text-[10px] font-medium text-gray-700">{inv.atoCode ?? '—'}</td>
-                      <td className="px-4 py-2 text-center"><StatusBadge status={inv.status} linked={!!inv.linkedTxnId} /></td>
-                      <td className="px-4 py-2 text-center" onClick={e => e.stopPropagation()}>
-                        {inv.pdfBlobUrl ? (
-                          <a href={inv.pdfBlobUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">
-                            <FileText className="h-4 w-4 inline" />
-                          </a>
-                        ) : <span className="text-muted-foreground text-[10px]">—</span>}
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr key={`${inv.id}-detail`}>
-                        <td colSpan={9} className="p-0 bg-gray-50/70">
-                          <InvoiceDetail inv={inv} />
-                        </td>
-                      </tr>
-                    )}
-                    </>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-3">
+          {groupBySupplier(invoices).map(group => {
+            const isGroupOpen = !collapsedGroups.has(group.supplier)
+            const groupTotal = group.invoices.reduce((s, i) => s + (i.totalAmount != null ? Number(i.totalAmount) : 0), 0)
+            const withAmount = group.invoices.filter(i => i.totalAmount != null).length
+            return (
+              <div key={group.supplier} className="bg-white rounded-2xl border border-border overflow-hidden">
+                <button
+                  onClick={() => setCollapsedGroups(prev => {
+                    const next = new Set(prev)
+                    if (next.has(group.supplier)) next.delete(group.supplier)
+                    else next.add(group.supplier)
+                    return next
+                  })}
+                  className="w-full px-4 py-3 flex items-center gap-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  {isGroupOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  <span className="text-sm font-semibold text-gray-900">{group.supplier}</span>
+                  <span className="text-xs text-muted-foreground">{group.invoices.length} invoice{group.invoices.length !== 1 ? 's' : ''}</span>
+                  {withAmount < group.invoices.length && <span className="text-[10px] text-amber-600">({group.invoices.length - withAmount} missing $)</span>}
+                  <span className="ml-auto text-xs font-medium text-green-700">{groupTotal > 0 ? formatAUD(groupTotal) : ''}</span>
+                </button>
+                {isGroupOpen && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-[10px] text-muted-foreground uppercase tracking-wide">
+                          <th className="text-left px-4 py-1.5 w-8"></th>
+                          <th className="text-left px-4 py-1.5">Date</th>
+                          <th className="text-left px-4 py-1.5">Invoice #</th>
+                          <th className="text-left px-4 py-1.5">Type</th>
+                          <th className="text-left px-4 py-1.5">Description</th>
+                          <th className="text-right px-4 py-1.5">Amount</th>
+                          <th className="text-right px-4 py-1.5">GST</th>
+                          <th className="text-center px-4 py-1.5">Doc</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {group.invoices.map(inv => {
+                          const isExp = expandedId === inv.id
+                          return (
+                            <>{/* eslint-disable-next-line react/jsx-key */}
+                            <tr key={inv.id} className={`cursor-pointer ${isExp ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}`}
+                              onClick={() => setExpandedId(isExp ? null : inv.id)}>
+                              <td className="px-4 py-2 text-muted-foreground">
+                                {isExp ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              </td>
+                              <td className="px-4 py-2 text-xs text-gray-700 whitespace-nowrap">
+                                {inv.invoiceDate || (inv.sourceEmailDate as any)?.toString?.().slice(0, 10) || '—'}
+                              </td>
+                              <td className="px-4 py-2 text-xs text-gray-700">{inv.invoiceNumber ?? '—'}</td>
+                              <td className="px-4 py-2"><TypeBadge type={inv.emailType} /></td>
+                              <td className="px-4 py-2 text-xs text-gray-600 max-w-[250px] truncate">{inv.description ?? '—'}</td>
+                              <td className="px-4 py-2 text-xs text-right font-medium text-gray-900">
+                                {inv.totalAmount != null ? formatAUD(Number(inv.totalAmount)) : <span className="text-amber-500">—</span>}
+                              </td>
+                              <td className="px-4 py-2 text-xs text-right text-muted-foreground">
+                                {inv.gstAmount != null ? formatAUD(Number(inv.gstAmount)) : '—'}
+                              </td>
+                              <td className="px-4 py-2 text-center" onClick={e => e.stopPropagation()}>
+                                {inv.pdfBlobUrl ? (
+                                  <a href={inv.pdfBlobUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600">
+                                    <FileText className="h-3.5 w-3.5 inline" />
+                                  </a>
+                                ) : <span className="text-[10px] text-muted-foreground">email</span>}
+                              </td>
+                            </tr>
+                            {isExp && (
+                              <tr key={`${inv.id}-detail`}>
+                                <td colSpan={8} className="p-0 bg-gray-50/70">
+                                  <InvoiceDetail inv={inv} />
+                                </td>
+                              </tr>
+                            )}
+                            </>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {total > invoices.length && (
-            <div className="px-4 py-2 text-xs text-muted-foreground text-center border-t border-border">
-              Showing {invoices.length} of {total}
-            </div>
+            <div className="text-xs text-muted-foreground text-center">Showing {invoices.length} of {total}</div>
           )}
         </div>
       )}
@@ -340,6 +360,44 @@ function StatusBadge({ status, linked }: { status: string; linked: boolean }) {
   return <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${cls}`}>{status}</span>
 }
 
+function EmailPreview({ invoiceId }: { invoiceId: string }) {
+  const [html, setHtml] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/financials/invoices/${invoiceId}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then(d => {
+        const raw = d.rawText || d.raw_text || ''
+        // If raw text looks like HTML, use it as srcdoc; otherwise wrap in <pre>
+        setHtml(raw.includes('<') ? raw : `<html><body><pre style="font-family:monospace;font-size:12px;padding:16px;white-space:pre-wrap">${raw.replace(/</g, '&lt;')}</pre></body></html>`)
+      })
+      .catch(() => setHtml(null))
+      .finally(() => setLoading(false))
+  }, [invoiceId])
+
+  if (loading) return <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" />Loading…</div>
+  if (!html) return <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg text-sm text-muted-foreground">No preview available</div>
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden bg-white" style={{ height: 400 }}>
+      <iframe srcDoc={html} className="w-full h-full" title="Email content" sandbox="allow-same-origin" />
+    </div>
+  )
+}
+
+function groupBySupplier(items: InvoiceRecord[]): Array<{ supplier: string; invoices: InvoiceRecord[] }> {
+  const groups = new Map<string, InvoiceRecord[]>()
+  for (const inv of items) {
+    const key = inv.supplierName ?? 'Unknown'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(inv)
+  }
+  return Array.from(groups.entries())
+    .map(([supplier, invoices]) => ({ supplier, invoices }))
+    .sort((a, b) => b.invoices.length - a.invoices.length)
+}
+
 function InvoiceDetail({ inv }: { inv: InvoiceRecord }) {
   return (
     <div className="px-6 py-4 grid grid-cols-[1fr_1fr] gap-x-8 gap-y-1">
@@ -366,23 +424,21 @@ function InvoiceDetail({ inv }: { inv: InvoiceRecord }) {
         <Field label="Email from" value={inv.sourceFrom} />
         <Field label="Email date" value={inv.sourceEmailDate?.toString().slice(0, 10)} />
       </div>
-      {/* Right: PDF preview */}
+      {/* Right: Document preview */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-2">PDF preview</h4>
+        <h4 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-2">Document preview</h4>
         {inv.pdfBlobUrl ? (
-          <div className="border border-border rounded-lg overflow-hidden bg-white" style={{ height: 500 }}>
-            <iframe src={inv.pdfBlobUrl} className="w-full h-full" title="Invoice PDF" />
-          </div>
+          <>
+            <div className="border border-border rounded-lg overflow-hidden bg-white" style={{ height: 400 }}>
+              <iframe src={inv.pdfBlobUrl} className="w-full h-full" title="Invoice PDF" />
+            </div>
+            <a href={inv.pdfBlobUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 mt-2">
+              <ExternalLink className="h-3 w-3" /> Open PDF in new tab
+            </a>
+          </>
         ) : (
-          <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg text-sm text-muted-foreground">
-            No PDF available for this invoice
-          </div>
-        )}
-        {inv.pdfBlobUrl && (
-          <a href={inv.pdfBlobUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 mt-2">
-            <ExternalLink className="h-3 w-3" /> Open PDF in new tab
-          </a>
+          <EmailPreview invoiceId={inv.id} />
         )}
       </div>
     </div>

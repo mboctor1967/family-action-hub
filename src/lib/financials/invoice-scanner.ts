@@ -153,10 +153,13 @@ export async function scanAllSuppliers(
             if (!kwMatch.matched) { totalResult.emailsProcessed++; continue }
           }
 
-          // Skip transactional filter for sender-matched emails — the sender+keyword
-          // match is sufficient proof. This recovers receipts and confirmations that
-          // lack the strict "invoice" / "tax invoice" markers.
-          // (Fix #3 from calibration: standalone app accepted all keyword-matched emails)
+          // Light filter: skip obvious marketing emails (long text with no dollar amounts).
+          // Replaces the strict isTransactionalEmail() check which was too aggressive.
+          const hasDollarAmount = /\$\d+\.\d{2}/.test(textContent)
+          if (!hasDollarAmount && textContent.length > 3000) {
+            totalResult.emailsProcessed++
+            continue // likely marketing — long email with no dollar amounts
+          }
 
           const extracted = extractInvoiceFields(email.subject, textContent)
           if (!['Invoice', 'Receipt'].includes(extracted.emailType)) {
@@ -197,7 +200,7 @@ export async function scanAllSuppliers(
             sourceFrom: email.from,
             atoCode: supplier.defaultAtoCode,
             status: 'extracted',
-            rawText: textContent.slice(0, 50000),
+            rawText: (email.htmlBody || textContent).slice(0, 50000), // prefer HTML for preview
           })
 
           totalResult.invoicesExtracted++
