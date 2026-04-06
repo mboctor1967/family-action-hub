@@ -35,6 +35,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const supplierId: string | undefined = body?.supplierId
   const fy: string | undefined = body?.fy
+  const startDate: string | undefined = body?.startDate // optional ISO date override
+  const endDate: string | undefined = body?.endDate // optional ISO date override
 
   if (!supplierId && !fy) {
     return new Response(JSON.stringify({ error: 'supplierId or fy is required' }), { status: 400 })
@@ -62,8 +64,8 @@ export async function POST(request: Request) {
 
       try {
         if (fy) {
-          // Scan ALL suppliers for the given FY
-          await scanAllSuppliers(fy, token, async (event) => send(event))
+          // Scan ALL suppliers for the given FY (with optional date overrides)
+          await scanAllSuppliers(fy, token, async (event) => send(event), startDate, endDate)
         } else {
           // Scan a single supplier
           const result = await scanSupplierInvoices(

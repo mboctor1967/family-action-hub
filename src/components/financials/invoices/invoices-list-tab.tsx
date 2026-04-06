@@ -20,6 +20,8 @@ export function InvoicesListTab() {
   const [scanPct, setScanPct] = useState(0)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
 
   function loadInvoices() {
     setLoading(true)
@@ -41,7 +43,11 @@ export function InvoicesListTab() {
       const res = await fetch('/api/financials/invoices/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fy }),
+        body: JSON.stringify({
+          fy,
+          ...(customStart ? { startDate: customStart } : {}),
+          ...(customEnd ? { endDate: customEnd } : {}),
+        }),
       })
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({}))
@@ -185,6 +191,17 @@ export function InvoicesListTab() {
           {buildFyOptions().map(o => <option key={o} value={o}>{o}</option>)}
         </select>
         <span className="text-xs text-muted-foreground">{total} invoice{total !== 1 ? 's' : ''}</span>
+        <span className="text-muted-foreground">|</span>
+        <label className="text-xs text-muted-foreground">From</label>
+        <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+          placeholder="Start" className="text-xs border border-border rounded-md px-2 py-1 w-32" />
+        <label className="text-xs text-muted-foreground">To</label>
+        <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+          placeholder="End" className="text-xs border border-border rounded-md px-2 py-1 w-32" />
+        {(customStart || customEnd) && (
+          <button onClick={() => { setCustomStart(''); setCustomEnd('') }}
+            className="text-[10px] text-red-600 hover:underline">clear</button>
+        )}
         <div className="flex-1" />
         {invoices.length > 0 && (
           <>

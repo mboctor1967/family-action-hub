@@ -53,9 +53,13 @@ export type ScanOnProgress = (event: ScanProgressEvent) => void | Promise<void>
 export async function scanAllSuppliers(
   fy: string,
   token: DriveToken,
-  onProgress: ScanOnProgress = () => {}
+  onProgress: ScanOnProgress = () => {},
+  startDateOverride?: string,
+  endDateOverride?: string
 ): Promise<ScanResult> {
   const fyRange = parseFy(fy)
+  const scanStart = startDateOverride ? new Date(startDateOverride) : new Date(fyRange.startDate)
+  const scanEnd = endDateOverride ? new Date(endDateOverride) : new Date(fyRange.endDate)
   const allSuppliers = await db.select().from(invoiceSuppliers).where(eq(invoiceSuppliers.isActive, true))
 
   // Filter to suppliers that have sender emails (query-based search requires them)
@@ -103,8 +107,8 @@ export async function scanAllSuppliers(
       const { messageIds } = await searchGmailByQuery(token, {
         senderEmails,
         keywords: keywords.length > 0 ? keywords : undefined,
-        startDate: new Date(fyRange.startDate),
-        endDate: new Date(fyRange.endDate),
+        startDate: scanStart,
+        endDate: scanEnd,
       }, 500)
 
       totalResult.emailsFound += messageIds.length
@@ -149,7 +153,10 @@ export async function scanAllSuppliers(
             if (!kwMatch.matched) { totalResult.emailsProcessed++; continue }
           }
 
-          if (!isTransactionalEmail(email.subject, textContent)) { totalResult.emailsProcessed++; continue }
+          // Skip transactional filter for sender-matched emails — the sender+keyword
+          // match is sufficient proof. This recovers receipts and confirmations that
+          // lack the strict "invoice" / "tax invoice" markers.
+          // (Fix #3 from calibration: standalone app accepted all keyword-matched emails)
 
           const extracted = extractInvoiceFields(email.subject, textContent)
           if (!['Invoice', 'Receipt'].includes(extracted.emailType)) {
