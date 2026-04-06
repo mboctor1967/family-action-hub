@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, FileText, ExternalLink, Link2, AlertCircle, Play, Download, ChevronDown, ChevronRight, Table2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 import type { InvoiceRecord, ScanProgressEvent } from '@/types/financials'
 
 const formatAUD = (v: number) =>
@@ -73,26 +74,29 @@ export function InvoicesListTab() {
     setScanning(false)
   }
 
+  function getExportRows() {
+    return invoices.map(inv => ({
+      'Date': inv.invoiceDate ?? (inv.sourceEmailDate as any)?.toString?.().slice(0, 10) ?? '',
+      'Supplier': inv.supplierName ?? '',
+      'Invoice #': inv.invoiceNumber ?? '',
+      'Reference #': inv.referenceNumber ?? '',
+      'Type': inv.emailType ?? '',
+      'Description': inv.description ?? '',
+      'Location': inv.location ?? '',
+      'Service Type': inv.serviceType ?? '',
+      'Sub-Total': inv.subTotal != null ? Number(inv.subTotal) : '',
+      'GST': inv.gstAmount != null ? Number(inv.gstAmount) : '',
+      'Total': inv.totalAmount != null ? Number(inv.totalAmount) : '',
+      'ATO Code': inv.atoCode ?? '',
+      'Status': inv.status ?? '',
+      'PDF URL': inv.pdfBlobUrl ?? '',
+    }))
+  }
+
   function exportCsv() {
     if (invoices.length === 0) return
-    const rows = invoices.map(inv => ({
-      date: inv.invoiceDate ?? inv.sourceEmailDate?.toString().slice(0, 10) ?? '',
-      supplier: inv.supplierName ?? '',
-      invoice_number: inv.invoiceNumber ?? '',
-      reference_number: inv.referenceNumber ?? '',
-      type: inv.emailType ?? '',
-      description: inv.description ?? '',
-      location: inv.location ?? '',
-      service_type: inv.serviceType ?? '',
-      sub_total: inv.subTotal ?? '',
-      gst: inv.gstAmount ?? '',
-      total: inv.totalAmount ?? '',
-      ato_code: inv.atoCode ?? '',
-      status: inv.status ?? '',
-      pdf_url: inv.pdfBlobUrl ?? '',
-    }))
+    const rows = getExportRows()
     const csv = Papa.unparse(rows, { header: true })
-    // Add BOM so Excel opens with correct UTF-8 encoding
     const bom = '\uFEFF'
     const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -101,7 +105,39 @@ export function InvoicesListTab() {
     a.download = `invoices_${fy}.csv`
     a.click()
     URL.revokeObjectURL(url)
-    toast.success(`Exported ${rows.length} invoices — opens in Excel`)
+    toast.success(`Exported ${rows.length} invoices as CSV`)
+  }
+
+  function exportExcel() {
+    if (invoices.length === 0) return
+    const rows = getExportRows()
+    const ws = XLSX.utils.json_to_sheet(rows)
+
+    // Auto-size columns
+    const colWidths = Object.keys(rows[0] || {}).map(key => ({
+      wch: Math.max(key.length, ...rows.map(r => String((r as any)[key] ?? '').length).slice(0, 50)) + 2,
+    }))
+    ws['!cols'] = colWidths
+
+    // Format currency columns
+    const currCols = ['Sub-Total', 'GST', 'Total']
+    const headers = Object.keys(rows[0] || {})
+    for (let r = 1; r <= rows.length; r++) {
+      for (const col of currCols) {
+        const colIdx = headers.indexOf(col)
+        if (colIdx < 0) continue
+        const cellRef = XLSX.utils.encode_cell({ r, c: colIdx })
+        const cell = ws[cellRef]
+        if (cell && typeof cell.v === 'number') {
+          cell.z = '$#,##0.00'
+        }
+      }
+    }
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Invoices')
+    XLSX.writeFile(wb, `invoices_${fy}.xlsx`)
+    toast.success(`Exported ${rows.length} invoices as Excel`)
   }
 
   async function downloadAllPdfs() {
@@ -152,8 +188,11 @@ export function InvoicesListTab() {
         <div className="flex-1" />
         {invoices.length > 0 && (
           <>
+            <button onClick={exportExcel} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-blue-700 border border-border rounded-md px-3 py-1.5">
+              <Table2 className="h-3.5 w-3.5" /> Excel
+            </button>
             <button onClick={exportCsv} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-blue-700 border border-border rounded-md px-3 py-1.5">
-              <Table2 className="h-3.5 w-3.5" /> Export Excel/CSV
+              <Table2 className="h-3.5 w-3.5" /> CSV
             </button>
             <button onClick={downloadAllPdfs} disabled={downloading}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-blue-700 border border-border rounded-md px-3 py-1.5 disabled:opacity-50">
