@@ -13,6 +13,7 @@ import { eq, and } from 'drizzle-orm'
 import { put } from '@vercel/blob'
 import {
   searchGmailByLabel,
+  searchGmailByQuery,
   getEmailContent,
   downloadAttachment,
   type GmailMessage,
@@ -57,22 +58,40 @@ export async function scanSupplierInvoices(
     .limit(1)
 
   if (!supplier) throw new Error(`Supplier ${input.supplierId} not found`)
-  if (!supplier.gmailLabel) throw new Error(`Supplier "${supplier.name}" has no Gmail label configured`)
 
   const fy = parseFy(supplier.fy)
   const keywords = (supplier.keywords as string[]) || []
-  if (keywords.length === 0) throw new Error(`Supplier "${supplier.name}" has no keywords configured`)
+  const senderEmails = (supplier.senderEmails as string[]) || []
 
-  await onProgress({ type: 'progress', step: `Searching Gmail label "${supplier.gmailLabel}"`, percent: 5 })
+  // Must have either a Gmail label OR sender emails to search
+  if (!supplier.gmailLabel && senderEmails.length === 0) {
+    throw new Error(`Supplier "${supplier.name}" needs either a Gmail label or sender email addresses to scan`)
+  }
 
-  // Search Gmail
-  const { messageIds } = await searchGmailByLabel(
-    input.token,
-    supplier.gmailLabel,
-    new Date(fy.startDate),
-    new Date(fy.endDate),
-    500
-  )
+  // Date range: custom overrides FY-derived dates
+  const startDate = supplier.customStartDate ? new Date(supplier.customStartDate) : new Date(fy.startDate)
+  const endDate = supplier.customEndDate ? new Date(supplier.customEndDate) : new Date(fy.endDate)
+
+  // Search Gmail — prefer query-based (sender + keywords), fall back to label-based
+  let messageIds: string[]
+  if (senderEmails.length > 0) {
+    await onProgress({
+      type: 'progress',
+      step: `Searching Gmail: from ${senderEmails[0]}${senderEmails.length > 1 ? ` +${senderEmails.length - 1} more` : ''} + ${keywords.length} keywords`,
+      percent: 5,
+    })
+    const result = await searchGmailByQuery(input.token, {
+      senderEmails,
+      keywords: keywords.length > 0 ? keywords : undefined,
+      startDate,
+      endDate,
+    }, 500)
+    messageIds = result.messageIds
+  } else {
+    await onProgress({ type: 'progress', step: `Searching Gmail label "${supplier.gmailLabel}"`, percent: 5 })
+    const result = await searchGmailByLabel(input.token, supplier.gmailLabel!, startDate, endDate, 500)
+    messageIds = result.messageIds
+  }
 
   await onProgress({
     type: 'progress',

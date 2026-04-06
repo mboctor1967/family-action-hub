@@ -492,14 +492,17 @@ export const invoiceTagsRelations = relations(invoiceTags, ({ one }) => ({
 // Invoice Reader Integration (v0.1.3)
 // =====================
 
-// Invoice Suppliers — config for which Gmail labels to scan per supplier per FY
+// Invoice Suppliers — config for which Gmail emails to scan per supplier per FY
 export const invoiceSuppliers = pgTable('invoice_suppliers', {
   id: uuid('id').primaryKey().defaultRandom(),
   entityId: uuid('entity_id').references(() => financialEntities.id, { onDelete: 'set null' }),
   name: text('name').notNull(), // "Wilson Parking"
-  gmailLabel: text('gmail_label'), // "Wilson 2024-25"
+  gmailLabel: text('gmail_label'), // optional legacy: "Wilson 2024-25" — if set, used instead of query
+  senderEmails: jsonb('sender_emails').notNull().default([]), // ["noreply@wilsonparking.com.au"]
   keywords: jsonb('keywords').notNull().default([]), // ["invoice", "receipt", "parking"]
   fy: text('fy').notNull(), // "FY2024-25"
+  customStartDate: date('custom_start_date'), // optional override for FY start
+  customEndDate: date('custom_end_date'), // optional override for FY end
   defaultAtoCode: text('default_ato_code'), // "6-MV", "6-OTHER-SUBS"
   isActive: boolean('is_active').default(true),
   lastScannedAt: timestamp('last_scanned_at'),

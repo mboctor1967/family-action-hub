@@ -36,8 +36,7 @@ export interface GmailAttachment {
 }
 
 /**
- * Search Gmail by label and date range.
- * Returns message IDs (lightweight — call getEmailContent per message for full content).
+ * Search Gmail by label and date range (legacy path — used when gmailLabel is set).
  */
 export async function searchGmailByLabel(
   token: TokenInfo,
@@ -45,6 +44,68 @@ export async function searchGmailByLabel(
   startDate: Date,
   endDate: Date,
   maxResults = 500
+): Promise<{ messageIds: string[]; newAccessToken?: string }> {
+  const after = Math.floor(startDate.getTime() / 1000)
+  const before = Math.floor(endDate.getTime() / 1000)
+  const query = `label:${label.replace(/\s+/g, '-')} after:${after} before:${before}`
+  return searchGmail(token, query, maxResults)
+}
+
+/**
+ * Search Gmail by sender emails + keywords + date range (preferred path).
+ *
+ * Builds a Gmail-native query like:
+ *   from:(noreply@wilsonparking.com.au OR billing@wp.com) (invoice OR receipt) after:2024/07/01 before:2025/06/30
+ */
+export async function searchGmailByQuery(
+  token: TokenInfo,
+  opts: {
+    senderEmails?: string[] // ["noreply@wilsonparking.com.au"]
+    keywords?: string[] // ["invoice", "receipt", "payment"]
+    startDate: Date
+    endDate: Date
+    hasAttachment?: boolean // add "has:attachment" to query
+  },
+  maxResults = 500
+): Promise<{ messageIds: string[]; newAccessToken?: string }> {
+  const parts: string[] = []
+
+  // Sender filter
+  if (opts.senderEmails && opts.senderEmails.length > 0) {
+    if (opts.senderEmails.length === 1) {
+      parts.push(`from:${opts.senderEmails[0]}`)
+    } else {
+      parts.push(`from:(${opts.senderEmails.join(' OR ')})`)
+    }
+  }
+
+  // Keyword filter (matches subject + body)
+  if (opts.keywords && opts.keywords.length > 0) {
+    if (opts.keywords.length === 1) {
+      parts.push(opts.keywords[0])
+    } else {
+      parts.push(`(${opts.keywords.join(' OR ')})`)
+    }
+  }
+
+  // Date range — Gmail uses YYYY/MM/DD format
+  const fmt = (d: Date) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+  parts.push(`after:${fmt(opts.startDate)}`)
+  parts.push(`before:${fmt(opts.endDate)}`)
+
+  if (opts.hasAttachment) parts.push('has:attachment')
+
+  const query = parts.join(' ')
+  return searchGmail(token, query, maxResults)
+}
+
+/**
+ * Core Gmail search — executes a raw Gmail query string.
+ */
+async function searchGmail(
+  token: TokenInfo,
+  query: string,
+  maxResults: number
 ): Promise<{ messageIds: string[]; newAccessToken?: string }> {
   const { drive: _, newAccessToken } = await createDriveClient(token)
 
@@ -58,12 +119,6 @@ export async function searchGmailByLabel(
   })
 
   const gmail = google.gmail({ version: 'v1', auth: oauth2 })
-
-  // Build query: label + date range
-  const after = Math.floor(startDate.getTime() / 1000)
-  const before = Math.floor(endDate.getTime() / 1000)
-  const query = `label:${label.replace(/\s+/g, '-')} after:${after} before:${before}`
-
   const messageIds: string[] = []
   let pageToken: string | undefined
 

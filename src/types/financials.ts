@@ -121,8 +121,11 @@ export interface InvoiceSupplierConfig {
   entityName?: string
   name: string
   gmailLabel: string | null
+  senderEmails: string[]
   keywords: string[]
   fy: string
+  customStartDate: string | null
+  customEndDate: string | null
   defaultAtoCode: string | null
   isActive: boolean
   lastScannedAt: string | null

@@ -134,8 +134,13 @@ export function SuppliersTab() {
                   )}
                   <span className="text-[10px] text-muted-foreground">{s.fy}</span>
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                  {s.gmailLabel && <span>Label: <span className="font-medium text-gray-700">{s.gmailLabel}</span></span>}
+                <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
+                  {(s.senderEmails as string[])?.length > 0 && (
+                    <span>From: <span className="font-medium text-gray-700">{(s.senderEmails as string[]).join(', ')}</span></span>
+                  )}
+                  {s.gmailLabel && !((s.senderEmails as string[])?.length > 0) && (
+                    <span>Label: <span className="font-medium text-gray-700">{s.gmailLabel}</span></span>
+                  )}
                   {s.defaultAtoCode && <span>ATO: <span className="font-medium text-gray-700">{s.defaultAtoCode}</span></span>}
                   {s.lastScannedAt && <span>Last scan: {new Date(s.lastScannedAt).toLocaleDateString('en-AU')}</span>}
                   <span>Keywords: {(s.keywords as string[])?.length ?? 0}</span>
@@ -189,14 +194,21 @@ function AddSupplierForm({
 }) {
   const [name, setName] = useState('')
   const [entityId, setEntityId] = useState('')
+  const [senderEmails, setSenderEmails] = useState('')
   const [gmailLabel, setGmailLabel] = useState('')
   const [keywords, setKeywords] = useState('')
   const [fy, setFy] = useState(getCurrentFy())
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
   const [defaultAtoCode, setDefaultAtoCode] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function save() {
     if (!name.trim()) return
+    if (!senderEmails.trim() && !gmailLabel.trim()) {
+      toast.error('Provide either sender email addresses or a Gmail label')
+      return
+    }
     setSaving(true)
     try {
       const res = await fetch('/api/financials/invoices/suppliers', {
@@ -205,9 +217,12 @@ function AddSupplierForm({
         body: JSON.stringify({
           name: name.trim(),
           entityId: entityId || null,
+          senderEmails: senderEmails.split(',').map(e => e.trim()).filter(Boolean),
           gmailLabel: gmailLabel.trim() || null,
           keywords: keywords.split(',').map(k => k.trim()).filter(Boolean),
           fy,
+          customStartDate: customStartDate || null,
+          customEndDate: customEndDate || null,
           defaultAtoCode: defaultAtoCode || null,
         }),
       })
@@ -235,9 +250,16 @@ function AddSupplierForm({
             {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Gmail Label</label>
-          <input value={gmailLabel} onChange={e => setGmailLabel(e.target.value)} placeholder="e.g. Wilson 2024-25"
+        <div className="col-span-2">
+          <label className="text-xs text-muted-foreground">Sender Email Addresses * (comma separated)</label>
+          <input value={senderEmails} onChange={e => setSenderEmails(e.target.value)}
+            placeholder="e.g. noreply@wilsonparking.com.au, billing@wilsonparking.com.au"
+            className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md" />
+          <p className="text-[10px] text-muted-foreground mt-0.5">The email address(es) this supplier sends invoices from. Check your inbox for their sender address.</p>
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-muted-foreground">Keywords (comma separated) — matches subject + body</label>
+          <input value={keywords} onChange={e => setKeywords(e.target.value)} placeholder="invoice, receipt, payment, tax invoice"
             className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md" />
         </div>
         <div>
@@ -245,15 +267,25 @@ function AddSupplierForm({
           <input value={fy} onChange={e => setFy(e.target.value)} placeholder="FY2024-25"
             className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md" />
         </div>
-        <div className="col-span-2">
-          <label className="text-xs text-muted-foreground">Keywords (comma separated)</label>
-          <input value={keywords} onChange={e => setKeywords(e.target.value)} placeholder="invoice, receipt, payment, parking"
-            className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md" />
-        </div>
         <div>
           <label className="text-xs text-muted-foreground">Default ATO Code</label>
           <input value={defaultAtoCode} onChange={e => setDefaultAtoCode(e.target.value)} placeholder="e.g. 6-MV, 6-OTHER-SUBS"
             className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Custom Start Date (optional — overrides FY)</label>
+          <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)}
+            className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Custom End Date (optional — overrides FY)</label>
+          <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)}
+            className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md" />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-muted-foreground">Gmail Label (legacy — only needed if sender emails aren't available)</label>
+          <input value={gmailLabel} onChange={e => setGmailLabel(e.target.value)} placeholder="e.g. Wilson 2024-25 (leave empty to use sender-based search)"
+            className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md text-muted-foreground" />
         </div>
       </div>
       <div className="flex gap-2 justify-end pt-2">

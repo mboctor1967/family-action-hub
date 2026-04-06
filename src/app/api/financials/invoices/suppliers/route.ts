@@ -28,8 +28,11 @@ export async function GET() {
       entityName: s.entity?.name ?? null,
       name: s.name,
       gmailLabel: s.gmailLabel,
+      senderEmails: s.senderEmails ?? [],
       keywords: s.keywords,
       fy: s.fy,
+      customStartDate: s.customStartDate,
+      customEndDate: s.customEndDate,
       defaultAtoCode: s.defaultAtoCode,
       isActive: s.isActive,
       lastScannedAt: s.lastScannedAt?.toISOString() ?? null,
@@ -43,7 +46,7 @@ export async function POST(request: Request) {
   if ((session.user as any).role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json().catch(() => ({}))
-  const { name, entityId, gmailLabel, keywords, fy, defaultAtoCode } = body
+  const { name, entityId, gmailLabel, senderEmails, keywords, fy, customStartDate, customEndDate, defaultAtoCode } = body
 
   if (!name?.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 })
   if (!fy?.trim()) return NextResponse.json({ error: 'fy is required' }, { status: 400 })
@@ -54,8 +57,11 @@ export async function POST(request: Request) {
       name: name.trim(),
       entityId: entityId || null,
       gmailLabel: gmailLabel?.trim() || null,
+      senderEmails: Array.isArray(senderEmails) ? senderEmails : [],
       keywords: Array.isArray(keywords) ? keywords : [],
       fy: fy.trim(),
+      customStartDate: customStartDate || null,
+      customEndDate: customEndDate || null,
       defaultAtoCode: defaultAtoCode || null,
     })
     .returning()
