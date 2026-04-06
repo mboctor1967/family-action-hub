@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, FileText, ExternalLink, Link2, AlertCircle, Play } from 'lucide-react'
+import { Loader2, FileText, ExternalLink, Link2, AlertCircle, Play, Download, ChevronDown, ChevronRight, Table2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import Papa from 'papaparse'
 import type { InvoiceRecord, ScanProgressEvent } from '@/types/financials'
 
 const formatAUD = (v: number) =>
@@ -16,6 +17,8 @@ export function InvoicesListTab() {
   const [scanning, setScanning] = useState(false)
   const [scanStep, setScanStep] = useState('')
   const [scanPct, setScanPct] = useState(0)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   function loadInvoices() {
     setLoading(true)
@@ -70,6 +73,69 @@ export function InvoicesListTab() {
     setScanning(false)
   }
 
+  function exportCsv() {
+    if (invoices.length === 0) return
+    const rows = invoices.map(inv => ({
+      date: inv.invoiceDate ?? inv.sourceEmailDate?.toString().slice(0, 10) ?? '',
+      supplier: inv.supplierName ?? '',
+      invoice_number: inv.invoiceNumber ?? '',
+      reference_number: inv.referenceNumber ?? '',
+      type: inv.emailType ?? '',
+      description: inv.description ?? '',
+      location: inv.location ?? '',
+      service_type: inv.serviceType ?? '',
+      sub_total: inv.subTotal ?? '',
+      gst: inv.gstAmount ?? '',
+      total: inv.totalAmount ?? '',
+      ato_code: inv.atoCode ?? '',
+      status: inv.status ?? '',
+      pdf_url: inv.pdfBlobUrl ?? '',
+    }))
+    const csv = Papa.unparse(rows, { header: true })
+    // Add BOM so Excel opens with correct UTF-8 encoding
+    const bom = '\uFEFF'
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `invoices_${fy}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Exported ${rows.length} invoices — opens in Excel`)
+  }
+
+  async function downloadAllPdfs() {
+    const withPdfs = invoices.filter(i => i.pdfBlobUrl)
+    if (withPdfs.length === 0) { toast.error('No PDFs to download'); return }
+    setDownloading(true)
+    try {
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      let count = 0
+      for (const inv of withPdfs) {
+        try {
+          const res = await fetch(inv.pdfBlobUrl!)
+          if (!res.ok) continue
+          const buf = await res.arrayBuffer()
+          const name = `${inv.invoiceDate ?? 'unknown'}_${(inv.supplierName ?? 'invoice').replace(/[^a-zA-Z0-9]/g, '_')}_${inv.invoiceNumber ?? inv.id.slice(0, 8)}.pdf`
+          zip.file(name, buf)
+          count++
+        } catch {}
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(zipBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `invoices_pdfs_${fy}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(`Downloaded ${count} PDFs as ZIP`)
+    } catch (err: any) {
+      toast.error('ZIP download failed')
+    }
+    setDownloading(false)
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center py-12 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading invoices…</div>
   }
@@ -84,13 +150,24 @@ export function InvoicesListTab() {
         </select>
         <span className="text-xs text-muted-foreground">{total} invoice{total !== 1 ? 's' : ''}</span>
         <div className="flex-1" />
+        {invoices.length > 0 && (
+          <>
+            <button onClick={exportCsv} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-blue-700 border border-border rounded-md px-3 py-1.5">
+              <Table2 className="h-3.5 w-3.5" /> Export Excel/CSV
+            </button>
+            <button onClick={downloadAllPdfs} disabled={downloading}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-blue-700 border border-border rounded-md px-3 py-1.5 disabled:opacity-50">
+              <Download className="h-3.5 w-3.5" /> {downloading ? 'Zipping…' : 'Download All PDFs'}
+            </button>
+          </>
+        )}
         <button
           onClick={scanAll}
           disabled={scanning}
           className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-md"
         >
           {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {scanning ? 'Scanning…' : `Scan All Suppliers for ${fy}`}
+          {scanning ? 'Scanning…' : `Scan All for ${fy}`}
         </button>
       </div>
 
@@ -128,42 +205,49 @@ export function InvoicesListTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {invoices.map(inv => (
-                  <tr key={inv.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-2 text-xs text-gray-700 whitespace-nowrap">
-                      {inv.invoiceDate || inv.sourceEmailDate?.slice(0, 10) || '—'}
-                    </td>
-                    <td className="px-4 py-2 text-xs font-medium text-gray-900 max-w-[200px] truncate">
-                      {inv.supplierName ?? '—'}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-700">{inv.invoiceNumber ?? '—'}</td>
-                    <td className="px-4 py-2">
-                      <TypeBadge type={inv.emailType} />
-                    </td>
-                    <td className="px-4 py-2 text-xs text-right font-medium text-gray-900">
-                      {inv.totalAmount != null ? formatAUD(Number(inv.totalAmount)) : '—'}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-right text-muted-foreground">
-                      {inv.gstAmount != null ? formatAUD(Number(inv.gstAmount)) : '—'}
-                    </td>
-                    <td className="px-4 py-2 text-[10px] font-medium text-gray-700">
-                      {inv.atoCode ?? '—'}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <StatusBadge status={inv.status} linked={!!inv.linkedTxnId} />
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      {inv.pdfBlobUrl ? (
-                        <a href={inv.pdfBlobUrl} target="_blank" rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700">
-                          <FileText className="h-4 w-4 inline" />
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground text-[10px]">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {invoices.map(inv => {
+                  const isExpanded = expandedId === inv.id
+                  return (
+                    <>{/* eslint-disable-next-line react/jsx-key */}
+                    <tr key={inv.id} className={`cursor-pointer ${isExpanded ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}`}
+                      onClick={() => setExpandedId(isExpanded ? null : inv.id)}>
+                      <td className="px-4 py-2 text-xs text-gray-700 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1">
+                          {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          {inv.invoiceDate || (inv.sourceEmailDate as any)?.toString?.().slice(0, 10) || '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-xs font-medium text-gray-900 max-w-[200px] truncate">
+                        {inv.supplierName ?? '—'}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-gray-700">{inv.invoiceNumber ?? '—'}</td>
+                      <td className="px-4 py-2"><TypeBadge type={inv.emailType} /></td>
+                      <td className="px-4 py-2 text-xs text-right font-medium text-gray-900">
+                        {inv.totalAmount != null ? formatAUD(Number(inv.totalAmount)) : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-right text-muted-foreground">
+                        {inv.gstAmount != null ? formatAUD(Number(inv.gstAmount)) : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-[10px] font-medium text-gray-700">{inv.atoCode ?? '—'}</td>
+                      <td className="px-4 py-2 text-center"><StatusBadge status={inv.status} linked={!!inv.linkedTxnId} /></td>
+                      <td className="px-4 py-2 text-center" onClick={e => e.stopPropagation()}>
+                        {inv.pdfBlobUrl ? (
+                          <a href={inv.pdfBlobUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">
+                            <FileText className="h-4 w-4 inline" />
+                          </a>
+                        ) : <span className="text-muted-foreground text-[10px]">—</span>}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${inv.id}-detail`}>
+                        <td colSpan={9} className="p-0 bg-gray-50/70">
+                          <InvoiceDetail inv={inv} />
+                        </td>
+                      </tr>
+                    )}
+                    </>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -198,6 +282,64 @@ function StatusBadge({ status, linked }: { status: string; linked: boolean }) {
   }
   const cls = cfg[status] ?? cfg.extracted
   return <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${cls}`}>{status}</span>
+}
+
+function InvoiceDetail({ inv }: { inv: InvoiceRecord }) {
+  return (
+    <div className="px-6 py-4 grid grid-cols-[1fr_1fr] gap-x-8 gap-y-1">
+      {/* Left: invoice fields */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-2">Invoice details</h4>
+        <Field label="Supplier" value={inv.supplierName} />
+        <Field label="Invoice #" value={inv.invoiceNumber} />
+        <Field label="Reference #" value={inv.referenceNumber} />
+        <Field label="Invoice date" value={inv.invoiceDate} />
+        <Field label="Purchase date" value={inv.purchaseDate} />
+        <Field label="Service date" value={inv.serviceDate} />
+        <Field label="Location" value={inv.location} />
+        <Field label="Service type" value={inv.serviceType} />
+        <Field label="Type" value={inv.emailType} />
+        <Field label="Description" value={inv.description} />
+        <div className="border-t border-gray-200 pt-2 mt-2" />
+        <Field label="Sub-total" value={inv.subTotal != null ? formatAUD(Number(inv.subTotal)) : null} />
+        <Field label="GST" value={inv.gstAmount != null ? formatAUD(Number(inv.gstAmount)) : null} />
+        <Field label="Total" value={inv.totalAmount != null ? formatAUD(Number(inv.totalAmount)) : null} bold />
+        <div className="border-t border-gray-200 pt-2 mt-2" />
+        <Field label="ATO code" value={inv.atoCode} />
+        <Field label="Status" value={inv.status} />
+        <Field label="Email from" value={inv.sourceFrom} />
+        <Field label="Email date" value={inv.sourceEmailDate?.toString().slice(0, 10)} />
+      </div>
+      {/* Right: PDF preview */}
+      <div>
+        <h4 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-2">PDF preview</h4>
+        {inv.pdfBlobUrl ? (
+          <div className="border border-border rounded-lg overflow-hidden bg-white" style={{ height: 500 }}>
+            <iframe src={inv.pdfBlobUrl} className="w-full h-full" title="Invoice PDF" />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg text-sm text-muted-foreground">
+            No PDF available for this invoice
+          </div>
+        )}
+        {inv.pdfBlobUrl && (
+          <a href={inv.pdfBlobUrl} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 mt-2">
+            <ExternalLink className="h-3 w-3" /> Open PDF in new tab
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, value, bold = false }: { label: string; value: string | null | undefined; bold?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-2 text-xs">
+      <span className="text-muted-foreground w-28 shrink-0">{label}</span>
+      <span className={`text-gray-900 ${bold ? 'font-semibold text-sm' : ''}`}>{value || '—'}</span>
+    </div>
+  )
 }
 
 function getCurrentFy() {
