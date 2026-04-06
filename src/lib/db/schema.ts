@@ -487,3 +487,82 @@ export const invoiceTagsRelations = relations(invoiceTags, ({ one }) => ({
   entity: one(financialEntities, { fields: [invoiceTags.entityId], references: [financialEntities.id] }),
   linkedTxn: one(financialTransactions, { fields: [invoiceTags.linkedTxnId], references: [financialTransactions.id] }),
 }))
+
+// =====================
+// Invoice Reader Integration (v0.1.3)
+// =====================
+
+// Invoice Suppliers — config for which Gmail labels to scan per supplier per FY
+export const invoiceSuppliers = pgTable('invoice_suppliers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entityId: uuid('entity_id').references(() => financialEntities.id, { onDelete: 'set null' }),
+  name: text('name').notNull(), // "Wilson Parking"
+  gmailLabel: text('gmail_label'), // "Wilson 2024-25"
+  keywords: jsonb('keywords').notNull().default([]), // ["invoice", "receipt", "parking"]
+  fy: text('fy').notNull(), // "FY2024-25"
+  defaultAtoCode: text('default_ato_code'), // "6-MV", "6-OTHER-SUBS"
+  isActive: boolean('is_active').default(true),
+  lastScannedAt: timestamp('last_scanned_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => [
+  index('idx_invoice_suppliers_entity').on(table.entityId),
+  index('idx_invoice_suppliers_fy').on(table.fy),
+])
+
+// Invoices — extracted invoice records from Gmail scanning
+export const invoices = pgTable('invoices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  supplierId: uuid('supplier_id').references(() => invoiceSuppliers.id, { onDelete: 'set null' }),
+  entityId: uuid('entity_id').references(() => financialEntities.id, { onDelete: 'set null' }),
+  fy: text('fy').notNull(),
+
+  // Extracted fields
+  invoiceNumber: text('invoice_number'),
+  invoiceDate: date('invoice_date'),
+  purchaseDate: date('purchase_date'),
+  serviceDate: text('service_date'), // may be a range: "27 Jun - 26 Jul 2025"
+  referenceNumber: text('reference_number'),
+  supplierName: text('supplier_name'), // from email (may differ from supplier.name)
+  location: text('location'),
+  serviceType: text('service_type'), // "Flexi Saver", "Daily Pass Bundle"
+  description: text('description'), // email subject
+  emailType: text('email_type'), // 'Invoice' | 'Receipt' | 'Payment Confirmation' | 'Other'
+
+  // Financials
+  subTotal: numeric('sub_total', { precision: 12, scale: 2 }),
+  gstAmount: numeric('gst_amount', { precision: 12, scale: 2 }),
+  totalAmount: numeric('total_amount', { precision: 12, scale: 2 }),
+
+  // Storage
+  pdfBlobUrl: text('pdf_blob_url'), // Vercel Blob signed URL
+  sourceEmailId: text('source_email_id').unique(), // Gmail message ID (dedup)
+  sourceEmailDate: timestamp('source_email_date'),
+  sourceFrom: text('source_from'), // email sender
+
+  // Linking
+  atoCode: text('ato_code'), // inherited from supplier default, overridable
+  linkedTxnId: uuid('linked_txn_id').references(() => financialTransactions.id, { onDelete: 'set null' }),
+  status: text('status').default('extracted'), // 'extracted' | 'verified' | 'linked' | 'excluded'
+
+  // Meta
+  rawText: text('raw_text'), // full extracted text for re-parsing/debugging
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => [
+  index('idx_invoices_supplier').on(table.supplierId),
+  index('idx_invoices_entity_fy').on(table.entityId, table.fy),
+  index('idx_invoices_linked_txn').on(table.linkedTxnId),
+  index('idx_invoices_status').on(table.status),
+])
+
+export const invoiceSuppliersRelations = relations(invoiceSuppliers, ({ one, many }) => ({
+  entity: one(financialEntities, { fields: [invoiceSuppliers.entityId], references: [financialEntities.id] }),
+  invoices: many(invoices),
+}))
+
+export const invoicesRelations = relations(invoices, ({ one }) => ({
+  supplier: one(invoiceSuppliers, { fields: [invoices.supplierId], references: [invoiceSuppliers.id] }),
+  entity: one(financialEntities, { fields: [invoices.entityId], references: [financialEntities.id] }),
+  linkedTxn: one(financialTransactions, { fields: [invoices.linkedTxnId], references: [financialTransactions.id] }),
+}))

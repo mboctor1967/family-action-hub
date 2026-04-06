@@ -35,8 +35,8 @@ import { EntityReport, type EntityReportData } from '@/lib/financials/tax-pdf/en
 import { ATO_CODE_LABELS } from '@/lib/financials/ato-codes'
 import { isClaudeAtoEnabled } from '@/lib/app-settings'
 import { db } from '@/lib/db'
-import { invoiceTags, financialStatements, financialAccounts } from '@/lib/db/schema'
-import { eq, and, isNull, sql } from 'drizzle-orm'
+import { invoiceTags, invoices as invoicesTable, financialStatements, financialAccounts } from '@/lib/db/schema'
+import { eq, and, isNull, sql, desc } from 'drizzle-orm'
 
 // -----------------------------------------------------------------------------
 // Types
@@ -155,56 +155,95 @@ export async function buildExportZip(
       entityFolder.file('gst-summary.csv', generateGstSummaryCsv(reportData))
     }
 
-    // Drive scan + invoice bundling
+    // Invoice bundling — prefer DB (from Invoice Reader scans), fall back to Drive folder scan
     let invoiceCount = 0
-    if (input.driveToken && entity.invoiceDriveFolder) {
-      await onProgress({
-        step: `Scanning invoices for ${entity.name}`,
-        percent: Math.round(baseProgress + 60 / entities.length),
-      })
+    await onProgress({
+      step: `Bundling invoices for ${entity.name}`,
+      percent: Math.round(baseProgress + 60 / entities.length),
+    })
+
+    // Strategy 1: Read from `invoices` table (populated by Invoice Reader scanner)
+    const dbInvoices = await db
+      .select()
+      .from(invoicesTable)
+      .where(and(eq(invoicesTable.entityId, entity.id), eq(invoicesTable.fy, fyRange.label)))
+      .orderBy(desc(invoicesTable.sourceEmailDate))
+
+    if (dbInvoices.length > 0) {
+      const invoicesFolder = entityFolder.folder('invoices')!
+
+      // Download PDFs from Vercel Blob and add to ZIP
+      for (const inv of dbInvoices) {
+        if (inv.pdfBlobUrl) {
+          try {
+            const res = await fetch(inv.pdfBlobUrl)
+            if (res.ok) {
+              const buffer = Buffer.from(await res.arrayBuffer())
+              const safeName = sanitizeFilename(
+                `${inv.invoiceDate ?? inv.sourceEmailDate?.toISOString().split('T')[0] ?? 'unknown'}_${inv.supplierName ?? 'invoice'}_${inv.invoiceNumber ?? inv.id.slice(0, 8)}.pdf`
+              )
+              invoicesFolder.file(safeName, buffer)
+              invoiceCount++
+            }
+          } catch (err) {
+            console.error(`Failed to download invoice PDF ${inv.id}:`, err)
+          }
+        }
+      }
+
+      // Generate invoices-index.csv from DB rows
+      const indexRows = dbInvoices.map(inv => ({
+        filename: `${inv.invoiceDate ?? ''}_${inv.supplierName ?? ''}_${inv.invoiceNumber ?? inv.id.slice(0, 8)}.pdf`,
+        date: inv.invoiceDate ?? inv.sourceEmailDate?.toISOString().split('T')[0] ?? '',
+        supplier: inv.supplierName ?? '',
+        amount: inv.totalAmount ?? '',
+        ato_code: inv.atoCode ?? '',
+        linked_txn_id: inv.linkedTxnId ?? '',
+        match_status: inv.status ?? 'extracted',
+        invoice_number: inv.invoiceNumber ?? '',
+        reference_number: inv.referenceNumber ?? '',
+        notes: inv.description ?? '',
+      }))
+      entityFolder.file('invoices-index.csv', Papa.unparse(indexRows, { header: true }))
+    }
+    // Strategy 2: Fall back to Drive folder scan (F1 legacy path)
+    else if (input.driveToken && entity.invoiceDriveFolder) {
       try {
         const scan = await scanInvoiceFolder(input.driveToken, entity.invoiceDriveFolder)
         const invoicesFolder = entityFolder.folder('invoices')!
 
-        // Fetch any existing tags for this entity+FY
         const tags = await db
           .select()
           .from(invoiceTags)
           .where(and(eq(invoiceTags.entityId, entity.id), eq(invoiceTags.fy, fyRange.label)))
         const tagsByFileId = new Map(tags.map(t => [t.gdriveFileId, t]))
 
-        // Download each file
         for (const file of scan.files) {
           try {
             const { buffer } = await downloadInvoiceFile(input.driveToken, file.id)
-            const safeName = `${sanitizeFilename(file.name)}`
-            invoicesFolder.file(safeName, buffer)
+            invoicesFolder.file(sanitizeFilename(file.name), buffer)
             invoiceCount++
           } catch (err) {
             console.error(`Failed to download invoice ${file.id}:`, err)
           }
         }
 
-        // Generate invoices-index.csv
-        entityFolder.file(
-          'invoices-index.csv',
-          generateInvoicesIndexCsv(scan.files, tagsByFileId)
-        )
+        entityFolder.file('invoices-index.csv', generateInvoicesIndexCsv(scan.files, tagsByFileId))
 
         if (scan.truncated) {
-          // Add a marker so the accountant knows there are more
-          invoicesFolder.file(
-            'README.txt',
-            `This folder was truncated at 500 files. Check the Drive folder directly for the full list.`
-          )
+          invoicesFolder.file('README.txt', 'Truncated at 500 files. Check Drive folder directly.')
         }
       } catch (err: any) {
-        // Drive error doesn't fail the whole export — log to folder
         entityFolder.file(
           'invoices-SCAN-ERROR.txt',
-          `Drive scan failed for folder: ${entity.invoiceDriveFolder}\nError: ${err?.message ?? String(err)}\nExport continued without invoices for this entity.`
+          `Drive scan failed: ${err?.message ?? String(err)}\nExport continued without invoices.`
         )
       }
+    }
+    // Strategy 3: No invoices source at all — empty folder
+    else {
+      entityFolder.folder('invoices')
+      entityFolder.file('invoices-index.csv', 'filename,date,supplier,amount,ato_code,linked_txn_id,match_status,notes\n')
     }
     totalInvoices += invoiceCount
 

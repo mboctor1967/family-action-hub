@@ -257,13 +257,10 @@ export default async function HomePage() {
               />
               <NavCard
                 title="Invoice Scanner"
-                href="#"
+                href="/financials/invoices"
                 icon={ScanLine}
                 iconColor="text-emerald-600"
                 iconBg="bg-emerald-50"
-                external
-                badge="External"
-                disabled
               />
             </div>
           </div>

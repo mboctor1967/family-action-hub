@@ -111,6 +111,77 @@ export interface AtoProposal {
   aiCompany: string | null
 }
 
+// =====================
+// Invoice Reader Integration (v0.1.3)
+// =====================
+
+export interface InvoiceSupplierConfig {
+  id: string
+  entityId: string | null
+  entityName?: string
+  name: string
+  gmailLabel: string | null
+  keywords: string[]
+  fy: string
+  defaultAtoCode: string | null
+  isActive: boolean
+  lastScannedAt: string | null
+}
+
+export interface ExtractedInvoice {
+  invoiceNumber: string | null
+  invoiceDate: string | null
+  purchaseDate: string | null
+  serviceDate: string | null
+  referenceNumber: string | null
+  supplierName: string | null
+  location: string | null
+  serviceType: string | null
+  description: string | null
+  emailType: 'Invoice' | 'Receipt' | 'Payment Confirmation' | 'Other'
+  subTotal: number | null
+  gstAmount: number | null
+  totalAmount: number | null
+  rawText: string
+}
+
+export interface InvoiceRecord {
+  id: string
+  supplierId: string | null
+  entityId: string | null
+  fy: string
+  invoiceNumber: string | null
+  invoiceDate: string | null
+  purchaseDate: string | null
+  serviceDate: string | null
+  referenceNumber: string | null
+  supplierName: string | null
+  location: string | null
+  serviceType: string | null
+  description: string | null
+  emailType: string | null
+  subTotal: number | null
+  gstAmount: number | null
+  totalAmount: number | null
+  pdfBlobUrl: string | null
+  sourceEmailId: string | null
+  sourceEmailDate: string | null
+  sourceFrom: string | null
+  atoCode: string | null
+  linkedTxnId: string | null
+  status: 'extracted' | 'verified' | 'linked' | 'excluded'
+  createdAt: string
+}
+
+export interface ScanProgressEvent {
+  type: 'progress' | 'complete' | 'error'
+  step?: string
+  percent?: number
+  emailsFound?: number
+  invoicesExtracted?: number
+  message?: string
+}
+
 export const SUBSCRIPTION_FREQUENCIES = ['monthly', 'annual', 'weekly'] as const
 export type SubscriptionFrequency = typeof SUBSCRIPTION_FREQUENCIES[number]
 
