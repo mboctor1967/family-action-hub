@@ -25,8 +25,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.name !== undefined) fields.name = body.name
   if (body.entityId !== undefined) fields.entityId = body.entityId || null
   if (body.gmailLabel !== undefined) fields.gmailLabel = body.gmailLabel || null
+  if (body.senderEmails !== undefined) fields.senderEmails = body.senderEmails
   if (body.keywords !== undefined) fields.keywords = body.keywords
   if (body.fy !== undefined) fields.fy = body.fy
+  if (body.customStartDate !== undefined) fields.customStartDate = body.customStartDate || null
+  if (body.customEndDate !== undefined) fields.customEndDate = body.customEndDate || null
   if (body.defaultAtoCode !== undefined) fields.defaultAtoCode = body.defaultAtoCode || null
   if (body.isActive !== undefined) fields.isActive = body.isActive
   fields.updatedAt = new Date()

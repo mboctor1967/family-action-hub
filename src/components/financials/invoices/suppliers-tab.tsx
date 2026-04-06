@@ -12,6 +12,7 @@ export function SuppliersTab() {
   const [entities, setEntities] = useState<Entity[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [scanning, setScanning] = useState<string | null>(null) // supplierId being scanned
   const [scanStep, setScanStep] = useState('')
   const [scanPct, setScanPct] = useState(0)
@@ -122,7 +123,15 @@ export function SuppliersTab() {
         </div>
       ) : (
         <div className="space-y-3">
-          {suppliers.map(s => (
+          {suppliers.map(s => editingId === s.id ? (
+            <EditSupplierForm
+              key={s.id}
+              supplier={s}
+              entities={entities}
+              onSave={() => { setEditingId(null); loadData() }}
+              onCancel={() => setEditingId(null)}
+            />
+          ) : (
             <div key={s.id} className="bg-white rounded-2xl border border-border p-4 flex items-center gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -147,6 +156,13 @@ export function SuppliersTab() {
                 </div>
               </div>
               <button
+                onClick={() => setEditingId(s.id)}
+                className="text-muted-foreground hover:text-blue-600"
+                title="Edit"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+              <button
                 onClick={() => startScan(s.id)}
                 disabled={!!scanning}
                 className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-md"
@@ -156,6 +172,7 @@ export function SuppliersTab() {
               <button
                 onClick={() => deleteSupplier(s.id, s.name)}
                 className="text-muted-foreground hover:text-red-600"
+                title="Delete"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -293,6 +310,108 @@ function AddSupplierForm({
         <button onClick={save} disabled={!name.trim() || saving}
           className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-md">
           {saving ? 'Saving…' : 'Add Supplier'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function EditSupplierForm({
+  supplier,
+  entities,
+  onSave,
+  onCancel,
+}: {
+  supplier: InvoiceSupplierConfig
+  entities: Entity[]
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(supplier.name)
+  const [entityId, setEntityId] = useState(supplier.entityId ?? '')
+  const [senderEmails, setSenderEmails] = useState((supplier.senderEmails ?? []).join(', '))
+  const [gmailLabel, setGmailLabel] = useState(supplier.gmailLabel ?? '')
+  const [keywords, setKeywords] = useState((supplier.keywords ?? []).join(', '))
+  const [fy, setFy] = useState(supplier.fy)
+  const [customStartDate, setCustomStartDate] = useState(supplier.customStartDate ?? '')
+  const [customEndDate, setCustomEndDate] = useState(supplier.customEndDate ?? '')
+  const [defaultAtoCode, setDefaultAtoCode] = useState(supplier.defaultAtoCode ?? '')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/financials/invoices/suppliers/${supplier.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          entityId: entityId || null,
+          senderEmails: senderEmails.split(',').map(e => e.trim()).filter(Boolean),
+          gmailLabel: gmailLabel.trim() || null,
+          keywords: keywords.split(',').map(k => k.trim()).filter(Boolean),
+          fy,
+          customStartDate: customStartDate || null,
+          customEndDate: customEndDate || null,
+          defaultAtoCode: defaultAtoCode || null,
+        }),
+      })
+      if (res.ok) { toast.success('Supplier updated'); onSave() }
+      else toast.error((await res.json()).error || 'Failed')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="bg-blue-50 rounded-2xl border border-blue-200 p-5 space-y-3">
+      <h3 className="text-sm font-semibold text-blue-900">Edit: {supplier.name}</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-muted-foreground">Supplier Name</label>
+          <input value={name} onChange={e => setName(e.target.value)} className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Entity</label>
+          <select value={entityId} onChange={e => setEntityId(e.target.value)} className="mt-1 w-full h-9 px-2 text-sm border border-border rounded-md bg-white">
+            <option value="">Select…</option>
+            {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-muted-foreground">Sender Email Addresses (comma separated)</label>
+          <input value={senderEmails} onChange={e => setSenderEmails(e.target.value)}
+            placeholder="e.g. noreply@wilsonparking.com.au"
+            className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white" />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-muted-foreground">Keywords (comma separated)</label>
+          <input value={keywords} onChange={e => setKeywords(e.target.value)} className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">FY</label>
+          <input value={fy} onChange={e => setFy(e.target.value)} className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Default ATO Code</label>
+          <input value={defaultAtoCode} onChange={e => setDefaultAtoCode(e.target.value)} className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Custom Start (optional)</label>
+          <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Custom End (optional)</label>
+          <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white" />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-muted-foreground">Gmail Label (legacy fallback)</label>
+          <input value={gmailLabel} onChange={e => setGmailLabel(e.target.value)} className="mt-1 w-full h-9 px-3 text-sm border border-border rounded-md bg-white text-muted-foreground" />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end pt-2">
+        <button onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-700 hover:bg-white rounded-md">Cancel</button>
+        <button onClick={save} disabled={saving} className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-md">
+          {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
     </div>
