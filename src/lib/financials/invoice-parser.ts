@@ -14,22 +14,44 @@ import type { ExtractedInvoice } from '@/types/financials'
 
 // ── Text utilities ──────────────────────────────────────────────────────────
 
-/** Strip HTML tags to plain text. */
+/** Strip HTML tags to plain text with better table cell handling. */
 export function htmlToText(html: string): string {
   return (html || '')
+    // Remove non-content blocks entirely
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+    // Remove HTML comments (often contain conditional CSS)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Table structure → preserve cell content with separators
+    .replace(/<\/tr>/gi, '\n')           // end of row → newline
+    .replace(/<\/th>/gi, ' | ')          // header cell separator
+    .replace(/<\/td>/gi, ' | ')          // data cell separator (pipe helps preserve structure)
+    .replace(/<td[^>]*>/gi, ' ')         // opening td → space (ensures content isn't concatenated)
+    .replace(/<th[^>]*>/gi, ' ')         // opening th → space
+    // Block elements → newlines
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
-    .replace(/<\/td>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<hr[^>]*>/gi, '\n')
+    // Strip all remaining tags
+    .replace(/<[^>]+>/g, ' ')
+    // Decode HTML entities
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&#\d+;/g, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    // Clean up whitespace (but preserve newlines for structure)
+    .replace(/[ \t]+/g, ' ')            // collapse horizontal whitespace
+    .replace(/\n\s*\n/g, '\n')          // collapse multiple blank lines
+    .replace(/^\s+|\s+$/gm, '')         // trim each line
     .trim()
 }
 
@@ -153,7 +175,7 @@ export function extractInvoiceFields(
   if (!invoiceNumber) {
     const invMatch =
       t.match(/Invoice\s+(?:number|no\.?|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,30})/i) ||
-      t.match(/(?:Order|Reference|Document|Bill)\s*(?:No\.?|Number|#|ID)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,30})/i) ||
+      t.match(/(?:Order|Reference|Document|Bill|Docket)\s*(?:No\.?|Number|#|ID)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-_/]{3,30})/i) ||
       // Apple format: "Order ID: MMWHLGYWX3" or "Document: 774113700749"
       t.match(/Order\s+ID[:\-]?\s*([A-Z0-9]{6,})/i) ||
       t.match(/Document[:\-]?\s*(\d{8,})/i)
@@ -202,19 +224,28 @@ export function extractInvoiceFields(
   const totalMatch4 = t.match(/(?:Total|Amount)\s+[A-Z]{2,3}\s+([\d,]+\.\d{2})/i)
   // Apple/subscription format: "Billed to" line preceded by a price like "$22.99"
   const totalMatch5 = t.match(/\$([\d,]+\.\d{2})\s*(?:Billed?\s+to|You were charged|Your total)/i)
-  // Bare price format: "$XX.XX" appearing in short invoice text (< 2000 chars = not marketing)
+  // Bare "$XX.XX" in short text
   const totalMatch6 = t.length < 3000 ? t.match(/\$([\d,]+\.\d{2})/) : null
-  const rawTotal = (totalMatch1 || totalMatch2 || totalMatch3 || totalMatch4 || totalMatch5 || totalMatch6)?.[1]
+  // Non-$ amount after total-like keywords (e.g. Good Guys: "Goods Dispatched\n 614.05")
+  const totalMatch7 = t.match(/(?:Goods\s+Dispatched|Grand\s+Total|Balance\s+Due|Total\s+(?:Inc|Incl|Due|Payable))[:\s]*\n?\s*([\d,]+\.\d{2})/i)
+  // Last resort for short PDF text: largest number > 10 (likely the total)
+  const totalMatch8 = (() => {
+    if (totalMatch1 || totalMatch2 || totalMatch3 || totalMatch4 || totalMatch5 || totalMatch6 || totalMatch7) return null
+    if (t.length > 5000) return null
+    const all = t.match(/\b(\d[\d,]*\.\d{2})\b/g)?.map(n => parseFloat(n.replace(/,/g, ''))).filter(n => n > 10)
+    return all?.length ? [null, String(Math.max(...all))] : null
+  })()
+  const rawTotal = (totalMatch1 || totalMatch2 || totalMatch3 || totalMatch4 || totalMatch5 || totalMatch6 || totalMatch7 || totalMatch8)?.[1]
   if (rawTotal) totalAmount = parseFloat(rawTotal.replace(/,/g, ''))
 
-  // ── GST
+  // ── GST — with and without $ prefix
   const gstMatch =
-    t.match(/GST\s*[:\-]?\s*\$([\d,]+\.\d{2})/i) ||
-    t.match(/Incl\.\s*\$([\d,]+\.\d{2})\s*GST/i)
+    t.match(/GST\s*[:\-]?\s*\$?([\d,]+\.\d{2})/i) ||
+    t.match(/Incl\.\s*\$?([\d,]+\.\d{2})\s*GST/i)
   if (gstMatch) gstAmount = parseFloat(gstMatch[1].replace(/,/g, ''))
 
-  // ── Sub-total
-  const subMatch = t.match(/Sub[- ]?total\s*[:\-]?\s*\$([\d,]+\.\d{2})/i)
+  // ── Sub-total — with and without $ prefix
+  const subMatch = t.match(/Sub[- ]?total\s*[:\-]?\s*\$?([\d,]+\.\d{2})/i)
   if (subMatch) subTotal = parseFloat(subMatch[1].replace(/,/g, ''))
 
   // ── Email type classification

@@ -44,8 +44,18 @@ export interface ScanResult {
 export type ScanOnProgress = (event: ScanProgressEvent) => void | Promise<void>
 
 /**
- * Scan Gmail for invoices from a single supplier and save results to DB.
+ * Convert a date string (YYYY-MM-DD) to Australian FY label (e.g. "FY2024-25").
+ * Australian FY: 1 July → 30 June. A date in Jan–Jun belongs to the FY that started the prior July.
  */
+function dateToFy(dateStr: string): string {
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return 'FY2024-25' // fallback
+  const month = d.getMonth() // 0-indexed: 0=Jan, 6=Jul
+  const year = d.getFullYear()
+  const startYear = month >= 6 ? year : year - 1
+  return `FY${startYear}-${String(startYear + 1).slice(-2)}`
+}
+
 /**
  * Scan ALL active suppliers for a given FY. Uses query-based search (sender emails + keywords).
  * Skips suppliers with no sender emails (they need manual config first).
@@ -58,8 +68,11 @@ export async function scanAllSuppliers(
   endDateOverride?: string
 ): Promise<ScanResult> {
   const fyRange = parseFy(fy)
+  // Gmail scan window: start from FY start, but extend end to TODAY to catch
+  // forwarded emails that arrived after FY ended but contain FY-dated invoices.
+  // The actual FY assignment is based on the extracted invoice date, not email date.
   const scanStart = startDateOverride ? new Date(startDateOverride) : new Date(fyRange.startDate)
-  const scanEnd = endDateOverride ? new Date(endDateOverride) : new Date(fyRange.endDate)
+  const scanEnd = endDateOverride ? new Date(endDateOverride) : new Date(Math.max(new Date(fyRange.endDate).getTime(), Date.now()))
   const allSuppliers = await db.select().from(invoiceSuppliers).where(eq(invoiceSuppliers.isActive, true))
 
   // Filter to suppliers that have sender emails (query-based search requires them)
@@ -72,7 +85,7 @@ export async function scanAllSuppliers(
 
   await onProgress({
     type: 'progress',
-    step: `Found ${scannable.length} scannable suppliers (${skipped} skipped — no sender emails)`,
+    step: `Scanning ${scannable.length} suppliers | Date range: ${scanStart.toISOString().split('T')[0]} → ${scanEnd.toISOString().split('T')[0]} (FY start → today) | ${skipped > 0 ? `${skipped} skipped (no sender emails)` : ''}`,
     percent: 2,
   })
 
@@ -100,9 +113,11 @@ export async function scanAllSuppliers(
     })
 
     try {
-      // Override the supplier's FY with the user-selected FY
       const senderEmails = (supplier.senderEmails as string[]) || []
-      const keywords = (supplier.keywords as string[]) || []
+      const configKeywords = (supplier.keywords as string[]) || []
+      // Always include supplier name as a keyword (catches forwarded emails titled "Wilson Parking jan25" etc.)
+      const supplierNameWords = supplier.name.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+      const keywords = [...new Set([...configKeywords, ...supplierNameWords, supplier.name.toLowerCase()])]
 
       const { messageIds } = await searchGmailByQuery(token, {
         senderEmails,
@@ -119,51 +134,89 @@ export async function scanAllSuppliers(
         percent: basePct + Math.round(10 / scannable.length),
       })
 
-      // Process each email (same logic as single-supplier scan)
+      // Process each email with verbose progress
       for (let j = 0; j < messageIds.length; j++) {
         const msgId = messageIds[j]
+        const emailPct = basePct + Math.round(((80 / scannable.length) * (j + 1)) / messageIds.length)
         try {
           // Dedup
           const existing = await db.select({ id: invoices.id }).from(invoices).where(eq(invoices.sourceEmailId, msgId)).limit(1)
-          if (existing.length > 0) { totalResult.duplicatesSkipped++; continue }
+          if (existing.length > 0) {
+            totalResult.duplicatesSkipped++
+            continue
+          }
 
           const email = await getEmailContent(token, msgId)
           let textContent = email.htmlBody ? htmlToText(email.htmlBody) : email.textBody
+          const subjectShort = email.subject.slice(0, 50)
 
+          // Download + parse PDF attachments (critical for PDF-only invoices like Good Guys)
           const attachmentFilenames: string[] = []
           const attachmentTexts: string[] = []
           let pdfBuffer: Buffer | null = null
+          let pdfTextExtracted = false
 
           for (const att of email.attachments) {
             attachmentFilenames.push(att.filename)
-            if (att.mimeType === 'application/pdf') {
+            const isPdf = att.mimeType === 'application/pdf' ||
+              (att.mimeType === 'application/octet-stream' && /\.pdf$/i.test(att.filename)) ||
+              /\.pdf$/i.test(att.filename)
+            console.log(`    ATT: ${att.filename} | ${att.mimeType} | isPdf=${isPdf}`)
+            if (isPdf) {
               try {
+                console.log(`    Downloading PDF: ${att.filename}...`)
                 const buf = await downloadAttachment(token, msgId, att.attachmentId)
                 const pdfParse = (await import('pdf-parse')).default
                 const pdfData = await pdfParse(buf)
-                if (pdfData.text) { attachmentTexts.push(pdfData.text); textContent += '\n' + pdfData.text }
+                if (pdfData.text) {
+                  attachmentTexts.push(pdfData.text)
+                  textContent += '\n' + pdfData.text
+                  pdfTextExtracted = true
+                }
                 if (!pdfBuffer) pdfBuffer = buf
-              } catch {}
+              } catch (err) {
+                console.error(`    PDF FAILED: ${att.filename} — ${(err as Error)?.message}`)
+                console.error(err)
+                totalResult.errors.push(`${supplier.name}: PDF parse failed for "${att.filename}" — ${(err as Error)?.message}`)
+              }
             }
           }
 
-          // Keyword match (still useful to filter noise even with sender-based search)
+          // Keyword match
+          let kwSkipped = false
           if (keywords.length > 0) {
             const kwMatch = findKeywordMatch(email.subject, textContent, attachmentFilenames, attachmentTexts, keywords)
-            if (!kwMatch.matched) { totalResult.emailsProcessed++; continue }
+            if (!kwMatch.matched) {
+              kwSkipped = true
+              await onProgress({
+                type: 'progress',
+                step: `${supplier.name} [${j + 1}/${messageIds.length}]: SKIP no keyword — "${subjectShort}"`,
+                percent: emailPct,
+              })
+              totalResult.emailsProcessed++
+              continue
+            }
           }
 
-          // Light filter: skip obvious marketing emails (long text with no dollar amounts).
-          // Replaces the strict isTransactionalEmail() check which was too aggressive.
-          const hasDollarAmount = /\$\d+\.\d{2}/.test(textContent)
-          if (!hasDollarAmount && textContent.length > 3000) {
+          // Marketing filter — skip emails with no dollar amounts AND no PDF attachments AND long body.
+          // If the email has a PDF attachment, always process it (the invoice data is in the PDF).
+          const hasDollarAmount = /\$\d+\.\d{2}/.test(textContent) || /\b\d[\d,]*\.\d{2}\b/.test(textContent)
+          const hasPdfAttachment = pdfBuffer !== null || pdfTextExtracted
+          const rawHtmlLength = email.htmlBody?.length ?? 0
+          const isLikelyMarketing = !hasDollarAmount && !hasPdfAttachment && (textContent.length > 3000 || rawHtmlLength > 20000)
+          if (isLikelyMarketing) {
+            await onProgress({
+              type: 'progress',
+              step: `${supplier.name} [${j + 1}/${messageIds.length}]: SKIP marketing — "${subjectShort}"`,
+              percent: emailPct,
+            })
             totalResult.emailsProcessed++
-            continue // likely marketing — long email with no dollar amounts
+            continue
           }
 
           const extracted = extractInvoiceFields(email.subject, textContent)
           if (!['Invoice', 'Receipt'].includes(extracted.emailType)) {
-            extracted.emailType = 'Invoice' // default for sender-matched emails
+            extracted.emailType = 'Invoice'
           }
 
           // Upload PDF
@@ -176,11 +229,38 @@ export async function scanAllSuppliers(
             } catch {}
           }
 
+          // Determine FY from invoice date (handles forwarded emails)
+          const invoiceFy = extracted.invoiceDate
+            ? dateToFy(extracted.invoiceDate)
+            : (email.date ? dateToFy(email.date.toISOString().split('T')[0]) : fy)
+
+          // FY filter: only keep invoices whose date falls within the target FY.
+          // We scan emails beyond the FY end date (to catch forwarded emails),
+          // but only save invoices dated within the FY.
+          if (invoiceFy !== fy) {
+            await onProgress({
+              type: 'progress',
+              step: `${supplier.name} [${j + 1}/${messageIds.length}]: SKIP wrong FY (${invoiceFy} ≠ ${fy}) — "${subjectShort}"`,
+              percent: emailPct,
+            })
+            totalResult.emailsProcessed++
+            continue
+          }
+
+          // Verbose progress: show what was extracted
+          const amtStr = extracted.totalAmount != null ? `$${extracted.totalAmount}` : 'no $'
+          const pdfStr = pdfBuffer ? (pdfTextExtracted ? 'PDF+text' : 'PDF') : 'no PDF'
+          await onProgress({
+            type: 'progress',
+            step: `${supplier.name} [${j + 1}/${messageIds.length}]: ✓ ${extracted.emailType} ${amtStr} ${pdfStr} — "${subjectShort}"`,
+            percent: emailPct,
+          })
+
           // Save to DB
           await db.insert(invoices).values({
             supplierId: supplier.id,
             entityId: supplier.entityId,
-            fy,
+            fy: invoiceFy,
             invoiceNumber: extracted.invoiceNumber,
             invoiceDate: extracted.invoiceDate,
             purchaseDate: extracted.purchaseDate,
@@ -327,7 +407,9 @@ export async function scanSupplierInvoices(
 
       for (const att of email.attachments) {
         attachmentFilenames.push(att.filename)
-        if (att.mimeType === 'application/pdf') {
+        const isPdf = att.mimeType === 'application/pdf' ||
+          (att.mimeType === 'application/octet-stream' && /\.pdf$/i.test(att.filename))
+        if (isPdf) {
           try {
             const pdfBuffer = await downloadAttachment(input.token, msgId, att.attachmentId)
             const pdfParse = (await import('pdf-parse')).default
@@ -396,11 +478,22 @@ export async function scanSupplierInvoices(
         }
       }
 
+      // Determine FY from invoice date (handles forwarded emails)
+      const invoiceFy = extracted.invoiceDate
+        ? dateToFy(extracted.invoiceDate)
+        : (email.date ? dateToFy(email.date.toISOString().split('T')[0]) : supplier.fy)
+
+      // FY filter: only keep invoices dated within the target FY
+      if (invoiceFy !== fy.label) {
+        result.emailsProcessed++
+        continue
+      }
+
       // Save to DB
       await db.insert(invoices).values({
         supplierId: supplier.id,
         entityId: supplier.entityId,
-        fy: supplier.fy,
+        fy: invoiceFy,
         invoiceNumber: extracted.invoiceNumber,
         invoiceDate: extracted.invoiceDate,
         purchaseDate: extracted.purchaseDate,

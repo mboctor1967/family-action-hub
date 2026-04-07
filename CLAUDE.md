@@ -101,6 +101,11 @@ Sign-off gates: **one** before coding (brief signed off) + **one** before commit
 - Every test case references the AC(s) it covers.
 - Release notes reference ACs and test results.
 
+### Commit and deploy discipline
+- **NEVER commit or deploy without explicit user instruction.** Do not auto-commit after completing work. Do not auto-deploy after pushing. Wait for the user to say "commit", "push", "deploy", or similar.
+- This applies even after completing a feature, fixing a bug, or passing all checks. The user decides when to commit.
+- **After completing any code change**, restart the local dev server on `localhost:3000` so the user can test immediately. Kill any existing dev server process first, then run `npm run dev`. The user tests locally before deciding to commit.
+
 ### Release gate (mandatory before commit)
 - Pre-commit checklist: version bumped, tests pass, lint pass, type-check pass, brief updated with actual outcomes.
 - **Option menu** for commit/push/deploy — never auto-push or auto-deploy:

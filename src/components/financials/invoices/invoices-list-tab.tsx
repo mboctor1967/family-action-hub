@@ -23,17 +23,40 @@ export function InvoicesListTab() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
+  // Filters
+  const [filterSupplier, setFilterSupplier] = useState<string>('')
+  const [filterMissingAmount, setFilterMissingAmount] = useState(false)
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [startCollapsed, setStartCollapsed] = useState(true)
 
   function loadInvoices() {
     setLoading(true)
-    fetch(`/api/financials/invoices?fy=${fy}&limit=200`)
+    fetch(`/api/financials/invoices?fy=${fy}&limit=500`)
       .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(d => { setInvoices(d.invoices || []); setTotal(d.total || 0) })
+      .then(d => {
+        const items = d.invoices || []
+        setInvoices(items)
+        setTotal(d.total || 0)
+        // Start all groups collapsed
+        const suppliers = Array.from(new Set(items.map((i: InvoiceRecord) => i.supplierName ?? 'Unknown'))) as string[]
+        setCollapsedGroups(new Set(suppliers)) // start all collapsed
+      })
       .catch(() => setInvoices([]))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { loadInvoices() }, [fy])
+
+  // Apply client-side filters
+  const filtered = invoices.filter(inv => {
+    if (filterSupplier && inv.supplierName !== filterSupplier) return false
+    if (filterMissingAmount && inv.totalAmount != null) return false
+    const invDate = inv.invoiceDate || (inv.sourceEmailDate as any)?.toString?.().slice(0, 10) || ''
+    if (filterDateFrom && invDate < filterDateFrom) return false
+    if (filterDateTo && invDate > filterDateTo) return false
+    return true
+  })
 
   async function scanAll() {
     setScanning(true)
@@ -240,13 +263,48 @@ export function InvoicesListTab() {
         </div>
       )}
 
-      {invoices.length === 0 ? (
+      {/* Filter bar */}
+      {invoices.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 bg-white rounded-lg border border-border px-4 py-2">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Filters</span>
+          <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)}
+            className="text-xs border border-border rounded-md px-2 py-1 bg-white">
+            <option value="">All suppliers</option>
+            {[...new Set(invoices.map(i => i.supplierName ?? 'Unknown'))].sort().map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <label className="inline-flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={filterMissingAmount} onChange={e => setFilterMissingAmount(e.target.checked)}
+              className="rounded border-border" />
+            Missing $
+          </label>
+          <span className="text-muted-foreground">|</span>
+          <label className="text-xs text-muted-foreground">Date from</label>
+          <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
+            className="text-xs border border-border rounded-md px-2 py-1 w-32" />
+          <label className="text-xs text-muted-foreground">to</label>
+          <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
+            className="text-xs border border-border rounded-md px-2 py-1 w-32" />
+          {(filterSupplier || filterMissingAmount || filterDateFrom || filterDateTo) && (
+            <button onClick={() => { setFilterSupplier(''); setFilterMissingAmount(false); setFilterDateFrom(''); setFilterDateTo('') }}
+              className="text-[10px] text-red-600 hover:underline">clear all</button>
+          )}
+          <span className="ml-auto text-xs text-muted-foreground">{filtered.length} of {invoices.length}</span>
+        </div>
+      )}
+
+      {filtered.length === 0 && invoices.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm">
           No invoices found for {fy}. Click "Scan All" above to search Gmail.
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          No invoices match the current filters.
+        </div>
       ) : (
         <div className="space-y-3">
-          {groupBySupplier(invoices).map(group => {
+          {groupBySupplier(filtered).map(group => {
             const isGroupOpen = !collapsedGroups.has(group.supplier)
             const groupTotal = group.invoices.reduce((s, i) => s + (i.totalAmount != null ? Number(i.totalAmount) : 0), 0)
             const withAmount = group.invoices.filter(i => i.totalAmount != null).length

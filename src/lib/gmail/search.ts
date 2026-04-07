@@ -70,12 +70,18 @@ export async function searchGmailByQuery(
 ): Promise<{ messageIds: string[]; newAccessToken?: string }> {
   const parts: string[] = []
 
-  // Sender filter
+  // Sender filter — supports full emails (user@domain.com) and domains (@domain.com)
+  // Domain format: if an entry starts with "@", it matches any sender from that domain
   if (opts.senderEmails && opts.senderEmails.length > 0) {
-    if (opts.senderEmails.length === 1) {
-      parts.push(`from:${opts.senderEmails[0]}`)
+    const senderTerms = opts.senderEmails.map(s => {
+      // If it's a bare domain like "officeworks.com.au", prefix with @
+      if (!s.includes('@') && s.includes('.')) return `@${s}`
+      return s
+    })
+    if (senderTerms.length === 1) {
+      parts.push(`from:${senderTerms[0]}`)
     } else {
-      parts.push(`from:(${opts.senderEmails.join(' OR ')})`)
+      parts.push(`from:(${senderTerms.join(' OR ')})`)
     }
   }
 
