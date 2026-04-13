@@ -572,3 +572,18 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
   entity: one(financialEntities, { fields: [invoices.entityId], references: [financialEntities.id] }),
   linkedTxn: one(financialTransactions, { fields: [invoices.linkedTxnId], references: [financialTransactions.id] }),
 }))
+
+// Notion Dedupe
+export const notionDedupeReports = pgTable('notion_dedupe_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+  uploadedBy: text('uploaded_by').notNull(),
+  filename: text('filename').notNull(),
+  scanTimestamp: text('scan_timestamp').notNull(),
+  totalClusters: integer('total_clusters').notNull(),
+  totalPages: integer('total_pages').notNull(),
+  report: jsonb('report').notNull(),
+  decisions: jsonb('decisions').notNull().default({}),
+}, (table) => [
+  index('idx_notion_dedupe_uploaded_at').on(table.uploadedAt),
+])
