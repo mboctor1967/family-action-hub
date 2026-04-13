@@ -67,11 +67,14 @@ export const emailsScanned = pgTable('emails_scanned', {
   aiSummary: text('ai_summary'),
   rawSnippet: text('raw_snippet'),
   gmailLabels: text('gmail_labels').array().default([]),
+  triageStatus: text('triage_status'), // unreviewed, confirmed, rejected — null for non-actionable
+  aiSuggestions: text('ai_suggestions'), // JSON blob: { urgency, suggested_assignee, suggested_topic, due_date, action_summary }
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   uniqueIndex('emails_unique_msg').on(table.gmailAccountId, table.messageId),
   index('idx_emails_gmail_account').on(table.gmailAccountId),
   index('idx_emails_classification').on(table.classification),
+  index('idx_emails_triage_status').on(table.triageStatus),
 ])
 
 // Tasks

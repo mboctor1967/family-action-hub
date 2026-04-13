@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { gmailAccounts, emailsScanned, tasks, topics, profiles, scanRuns } from '@/lib/db/schema'
+import { gmailAccounts, emailsScanned, tasks, topics, scanRuns } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { fetchEmails, preFilterEmails } from '@/lib/gmail/client'
 import { classifyEmails, type EmailInput } from '@/lib/ai/classify'
@@ -164,7 +164,7 @@ export async function POST(request: Request) {
 
         const classifications = await classifyEmails(emailInputs, skillPrompt, topicNames)
 
-        send('progress', { step: 5, total: 5, label: 'Saving tasks...', percent: 80 })
+        send('progress', { step: 5, total: 5, label: 'Saving results...', percent: 80 })
 
         // Step 5: Store results
         let actionableCount = 0
@@ -174,7 +174,9 @@ export async function POST(request: Request) {
           const email = filtered.find(e => e.messageId === classification.messageId)
           if (!email) continue
 
-          const [storedEmail] = await db.insert(emailsScanned).values({
+          const isActionable = classification.classification === 'actionable'
+
+          await db.insert(emailsScanned).values({
             gmailAccountId: account.id,
             messageId: email.messageId,
             threadId: email.threadId,
@@ -187,41 +189,18 @@ export async function POST(request: Request) {
             aiSummary: classification.action_summary || classification.reasoning,
             rawSnippet: email.snippet,
             gmailLabels: email.labels,
-          }).returning()
+            triageStatus: isActionable ? 'unreviewed' : null,
+            aiSuggestions: isActionable ? JSON.stringify({
+              urgency: classification.urgency || 'medium',
+              suggested_assignee: classification.suggested_assignee,
+              suggested_topic: classification.suggested_topic,
+              due_date: classification.due_date,
+              action_summary: classification.action_summary,
+            }) : null,
+          })
 
-          if (classification.classification === 'actionable') {
+          if (isActionable) {
             actionableCount++
-
-            let topicId = null
-            if (classification.suggested_topic) {
-              const topicResult = await db.select({ id: topics.id })
-                .from(topics)
-                .where(eq(topics.name, classification.suggested_topic))
-                .limit(1)
-              topicId = topicResult[0]?.id || null
-            }
-
-            let assigneeId = session.user!.id!
-            if (classification.suggested_assignee) {
-              const assigneeResult = await db.select({ id: profiles.id })
-                .from(profiles)
-                .where(eq(profiles.name, classification.suggested_assignee))
-                .limit(1)
-              if (assigneeResult[0]) assigneeId = assigneeResult[0].id
-            }
-
-            await db.insert(tasks).values({
-              title: email.subject || 'Untitled task',
-              description: classification.action_summary || email.snippet,
-              status: 'new',
-              priority: classification.urgency || 'medium',
-              dueDate: classification.due_date ? new Date(classification.due_date) : null,
-              assigneeId,
-              createdBy: session.user!.id!,
-              topicId,
-              sourceEmailId: storedEmail.id,
-              gmailLink: `https://mail.google.com/mail/u/0/#all/${email.messageId}`,
-            })
           } else if (classification.classification === 'informational') {
             informationalCount++
           }

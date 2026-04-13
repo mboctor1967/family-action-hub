@@ -12,6 +12,7 @@ interface NavCardProps {
   stats?: Array<{ label: string; value: string | number }>
   external?: boolean
   badge?: string
+  badgeVariant?: 'default' | 'info' | 'warning' | 'danger'
   disabled?: boolean
 }
 
@@ -28,8 +29,15 @@ export function NavCard({
   stats,
   external = false,
   badge,
+  badgeVariant = 'default',
   disabled = false,
 }: NavCardProps) {
+  const badgeStyles = {
+    default: 'text-gray-500 bg-gray-100',
+    info: 'text-blue-700 bg-blue-100',
+    warning: 'text-amber-700 bg-amber-100',
+    danger: 'text-red-700 bg-red-100',
+  }
   const content = (
     <div
       className={cn(
@@ -45,7 +53,7 @@ export function NavCard({
         </div>
         <div className="flex items-center gap-1.5">
           {badge && (
-            <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+            <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', badgeStyles[badgeVariant])}>
               {badge}
             </span>
           )}

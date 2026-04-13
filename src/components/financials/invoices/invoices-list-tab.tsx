@@ -105,7 +105,7 @@ export function InvoicesListTab() {
   }
 
   function getExportRows() {
-    return invoices.map(inv => ({
+    return filtered.map(inv => ({
       'Date': inv.invoiceDate ?? (inv.sourceEmailDate as any)?.toString?.().slice(0, 10) ?? '',
       'Supplier': inv.supplierName ?? '',
       'Invoice #': inv.invoiceNumber ?? '',
@@ -124,7 +124,7 @@ export function InvoicesListTab() {
   }
 
   function exportCsv() {
-    if (invoices.length === 0) return
+    if (filtered.length === 0) return
     const rows = getExportRows()
     const csv = Papa.unparse(rows, { header: true })
     const bom = '\uFEFF'
@@ -139,7 +139,7 @@ export function InvoicesListTab() {
   }
 
   function exportExcel() {
-    if (invoices.length === 0) return
+    if (filtered.length === 0) return
     const rows = getExportRows()
     const ws = XLSX.utils.json_to_sheet(rows)
 
@@ -171,7 +171,7 @@ export function InvoicesListTab() {
   }
 
   async function downloadAllPdfs() {
-    const withPdfs = invoices.filter(i => i.pdfBlobUrl)
+    const withPdfs = filtered.filter(i => i.pdfBlobUrl)
     if (withPdfs.length === 0) { toast.error('No PDFs to download'); return }
     setDownloading(true)
     try {
@@ -183,8 +183,9 @@ export function InvoicesListTab() {
           const res = await fetch(inv.pdfBlobUrl!)
           if (!res.ok) continue
           const buf = await res.arrayBuffer()
-          const name = `${inv.invoiceDate ?? 'unknown'}_${(inv.supplierName ?? 'invoice').replace(/[^a-zA-Z0-9]/g, '_')}_${inv.invoiceNumber ?? inv.id.slice(0, 8)}.pdf`
-          zip.file(name, buf)
+          const folder = (inv.supplierName ?? 'Unknown').replace(/[^a-zA-Z0-9 ]/g, '_').trim()
+          const name = `${inv.invoiceDate ?? 'unknown'}_${inv.invoiceNumber ?? inv.id.slice(0, 8)}.pdf`
+          zip.file(`${folder}/${name}`, buf)
           count++
         } catch {}
       }

@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { tasks, profiles, topics } from '@/lib/db/schema'
-import { eq, desc, and, isNull } from 'drizzle-orm'
+import { eq, desc, and, isNull, not } from 'drizzle-orm'
 import { TaskCard } from '@/components/tasks/task-card'
 import { TaskFilters } from '@/components/tasks/task-filters'
 import { PageHeader } from '@/components/ui/page-header'
@@ -20,7 +20,12 @@ export default async function TasksPage({ searchParams }: PageProps) {
   if (!session?.user) return null
 
   const conditions = []
-  if (params.status) conditions.push(eq(tasks.status, params.status))
+  const statusFilter = params.status || 'active'
+  if (statusFilter === 'active') {
+    conditions.push(not(eq(tasks.status, 'dismissed')))
+  } else if (statusFilter !== 'all') {
+    conditions.push(eq(tasks.status, statusFilter))
+  }
   if (params.priority) conditions.push(eq(tasks.priority, params.priority))
   if (params.assignee) conditions.push(eq(tasks.assigneeId, params.assignee))
   if (params.topic) conditions.push(eq(tasks.topicId, params.topic))
@@ -32,6 +37,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
       topic: { columns: { id: true, name: true, color: true, icon: true } },
       comments: { columns: { id: true } },
       subtasks: { columns: { id: true, title: true, isComplete: true } },
+      sourceEmail: { columns: { id: true, subject: true, fromName: true, date: true } },
     },
     orderBy: [desc(tasks.createdAt)],
   })

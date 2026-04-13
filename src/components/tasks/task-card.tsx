@@ -4,10 +4,11 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Calendar, MessageSquare, CheckCircle2, ExternalLink, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Calendar, MessageSquare, CheckCircle2, ExternalLink, ThumbsUp, ThumbsDown, Clock, Mail, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow, format } from 'date-fns'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 
 const priorityColors = {
@@ -39,11 +40,37 @@ interface TaskCardProps {
     topic?: { id: string; name: string; color: string } | null
     comments?: { id: string }[] | number
     subtasks?: { id: string; title: string; isComplete: boolean }[]
+    sourceEmail?: { id: string; subject: string; fromName?: string | null; date?: string | null } | null
   }
 }
 
 export function TaskCard({ task }: TaskCardProps) {
+  const router = useRouter()
   const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null)
+  const [triageLoading, setTriageLoading] = useState(false)
+
+  const isTriageable = task.status === 'new' && task.sourceEmail
+
+  async function triageTask(action: 'confirm' | 'dismiss', e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setTriageLoading(true)
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: action === 'confirm' ? 'in_progress' : 'dismissed' }),
+      })
+      if (res.ok) {
+        toast.success(action === 'confirm' ? 'Task confirmed' : 'Task dismissed')
+        router.refresh()
+      }
+    } catch {
+      toast.error('Failed to update task')
+    } finally {
+      setTriageLoading(false)
+    }
+  }
 
   async function sendFeedback(vote: 'up' | 'down', e: React.MouseEvent) {
     e.preventDefault()
@@ -141,22 +168,43 @@ export function TaskCard({ task }: TaskCardProps) {
                 </span>
               )}
 
+              {task.createdAt && (
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground" title={`Created: ${format(new Date(task.createdAt), 'd MMM yyyy, h:mm a')}`}>
+                  <Clock className="h-3 w-3" />
+                  {task.sourceEmail ? 'Scanned ' : ''}{formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
+                </span>
+              )}
+
+              {task.sourceEmail && (
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[300px]" title={`From: ${task.sourceEmail.fromName || 'Unknown'}\nSubject: ${task.sourceEmail.subject}\nEmail date: ${task.sourceEmail.date ? format(new Date(task.sourceEmail.date), 'd MMM yyyy') : 'N/A'}`}>
+                  <Mail className="h-3 w-3 shrink-0" />
+                  {task.sourceEmail.fromName || 'Scan'}
+                  {task.sourceEmail.date && (
+                    <span className="text-muted-foreground/70">
+                      · {format(new Date(task.sourceEmail.date), 'd MMM')}
+                    </span>
+                  )}
+                </span>
+              )}
+
               {task.gmailLink && (
-                <a
-                  href={task.gmailLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    window.open(task.gmailLink, '_blank', 'noopener,noreferrer')
+                  }}
                   className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
                   Email
-                </a>
+                </button>
               )}
             </div>
           </div>
 
-          {/* Right side: assignee + feedback */}
+          {/* Right side: assignee + triage/feedback */}
           <div className="flex flex-col items-center gap-1.5 shrink-0">
             {task.assignee && (
               <Avatar className="h-7 w-7">
@@ -166,29 +214,49 @@ export function TaskCard({ task }: TaskCardProps) {
                 </AvatarFallback>
               </Avatar>
             )}
-            {/* Thumbs feedback */}
-            <div className="flex gap-1">
-              <button
-                onClick={(e) => sendFeedback('up', e)}
-                className={cn(
-                  'p-0.5 rounded hover:bg-green-50 transition-colors',
-                  feedbackGiven === 'up' ? 'text-green-600' : 'text-gray-300 hover:text-green-500'
-                )}
-                title="Good classification"
-              >
-                <ThumbsUp className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={(e) => sendFeedback('down', e)}
-                className={cn(
-                  'p-0.5 rounded hover:bg-red-50 transition-colors',
-                  feedbackGiven === 'down' ? 'text-red-600' : 'text-gray-300 hover:text-red-500'
-                )}
-                title="Wrong classification"
-              >
-                <ThumbsDown className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            {isTriageable ? (
+              <div className="flex gap-1">
+                <button
+                  onClick={(e) => triageTask('confirm', e)}
+                  disabled={triageLoading}
+                  className="p-1 rounded-md bg-green-50 text-green-600 hover:bg-green-100 transition-colors disabled:opacity-50"
+                  title="Confirm task"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={(e) => triageTask('dismiss', e)}
+                  disabled={triageLoading}
+                  className="p-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
+                  title="Dismiss task"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-1">
+                <button
+                  onClick={(e) => sendFeedback('up', e)}
+                  className={cn(
+                    'p-0.5 rounded hover:bg-green-50 transition-colors',
+                    feedbackGiven === 'up' ? 'text-green-600' : 'text-gray-300 hover:text-green-500'
+                  )}
+                  title="Good classification"
+                >
+                  <ThumbsUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={(e) => sendFeedback('down', e)}
+                  className={cn(
+                    'p-0.5 rounded hover:bg-red-50 transition-colors',
+                    feedbackGiven === 'down' ? 'text-red-600' : 'text-gray-300 hover:text-red-500'
+                  )}
+                  title="Wrong classification"
+                >
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </Card>
