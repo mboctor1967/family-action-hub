@@ -7,8 +7,9 @@ import {
   financialEntities,
   financialStatements,
   scanRuns,
+  emailsScanned,
 } from '@/lib/db/schema'
-import { inArray, sql, eq, desc, isNull, and, gte, lte } from 'drizzle-orm'
+import { inArray, sql, eq, desc, isNull, and, gte, lte, lt } from 'drizzle-orm'
 import { NavCard } from '@/components/ui/nav-card'
 import { PageHeader } from '@/components/ui/page-header'
 import {
@@ -69,10 +70,11 @@ export default async function HomePage() {
     activeSubsRow,
     coverageRow,
     taxRow,
+    unreviewedTriageCount,
   ] = await Promise.all([
     db.select({ n: sql<number>`count(*)` }).from(tasks).where(inArray(tasks.status, ['new', 'in_progress', 'waiting'])).then(r => Number(r[0]?.n || 0)),
-    db.select({ n: sql<number>`count(*)` }).from(tasks).where(sql`${tasks.status} in ('new','in_progress','waiting') and ${tasks.priority} = 'urgent'`).then(r => Number(r[0]?.n || 0)),
-    db.select({ n: sql<number>`count(*)` }).from(tasks).where(sql`${tasks.status} in ('new','in_progress','waiting') and ${tasks.dueDate} < now()`).then(r => Number(r[0]?.n || 0)),
+    db.select({ n: sql<number>`count(*)` }).from(tasks).where(and(inArray(tasks.status, ['new', 'in_progress', 'waiting']), eq(tasks.priority, 'urgent'))).then(r => Number(r[0]?.n || 0)),
+    db.select({ n: sql<number>`count(*)` }).from(tasks).where(and(inArray(tasks.status, ['new', 'in_progress', 'waiting']), lt(tasks.dueDate, sql`now()`))).then(r => Number(r[0]?.n || 0)),
     db.select({ completedAt: scanRuns.completedAt, count: scanRuns.actionableCount }).from(scanRuns).where(eq(scanRuns.status, 'completed')).orderBy(desc(scanRuns.completedAt)).limit(1).then(r => r[0] || null),
 
     isAdmin ? db.select({ n: sql<number>`count(*)` }).from(financialAccounts).then(r => Number(r[0]?.n || 0)) : Promise.resolve(0),
@@ -130,6 +132,8 @@ export default async function HomePage() {
       eq(financialTransactions.isTaxDeductible, true),
       gte(financialTransactions.transactionDate, fyStartStr),
     )).then(r => r[0] || { total: 0, count: 0 }) : Promise.resolve({ total: 0, count: 0 }),
+
+    db.select({ n: sql<number>`count(*)` }).from(emailsScanned).where(eq(emailsScanned.triageStatus, 'unreviewed')).then(r => Number(r[0]?.n || 0)),
   ])
 
   const lastScanLabel = lastScan?.completedAt
@@ -172,9 +176,11 @@ export default async function HomePage() {
             icon={Mail}
             iconColor="text-purple-600"
             iconBg="bg-purple-50"
+            badge={unreviewedTriageCount > 0 ? `${unreviewedTriageCount} unreviewed` : undefined}
+            badgeVariant="warning"
             stats={[
               { label: 'Last scan', value: lastScanLabel },
-              { label: 'New items', value: Number(lastScan?.count || 0) },
+              { label: 'To review', value: unreviewedTriageCount },
             ]}
           />
         </div>

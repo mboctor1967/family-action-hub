@@ -159,6 +159,22 @@
       "original_classification": "actionable",
       "confirmed": true,
       "date": "2026-03-28"
+    },
+    {
+      "sender": "a.godaddy.com",
+      "subject_pattern": "DTHREE.IO - Domain Broker Service [ACTION REQUIRED]",
+      "learned": "correctly actionable",
+      "original_classification": "actionable",
+      "confirmed": true,
+      "date": "2026-04-12"
+    },
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "Your Stripe verification code",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-12"
     }
   ]
 }

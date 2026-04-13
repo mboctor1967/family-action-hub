@@ -71,7 +71,18 @@ export default function TaskDetailPage() {
       body: JSON.stringify(updates),
     })
     if (res.ok) {
-      setTask({ ...task, ...updates })
+      const enriched = { ...updates }
+      if ('assigneeId' in updates) {
+        enriched.assignee = updates.assigneeId
+          ? members.find((m) => m.id === updates.assigneeId) || null
+          : null
+      }
+      if ('topicId' in updates) {
+        enriched.topic = updates.topicId
+          ? topics.find((t) => t.id === updates.topicId) || null
+          : null
+      }
+      setTask({ ...task, ...enriched })
       toast.success('Updated')
     }
   }
@@ -182,7 +193,7 @@ export default function TaskDetailPage() {
           <label className="text-xs font-medium text-muted-foreground">Status</label>
           <Select value={task.status} onValueChange={handleStatusChange}>
             <SelectTrigger className="h-9 mt-1">
-              <SelectValue />
+              <span className="truncate">{{ new: 'New', in_progress: 'In Progress', waiting: 'Waiting', done: 'Done', dismissed: 'Dismissed' }[task.status as string] || task.status}</span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="new">New</SelectItem>
@@ -198,7 +209,7 @@ export default function TaskDetailPage() {
           <label className="text-xs font-medium text-muted-foreground">Priority</label>
           <Select value={task.priority} onValueChange={(v) => updateTask({ priority: v })}>
             <SelectTrigger className="h-9 mt-1">
-              <SelectValue />
+              <span className="truncate capitalize">{task.priority}</span>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="urgent">Urgent</SelectItem>
@@ -211,46 +222,38 @@ export default function TaskDetailPage() {
 
         <div>
           <label className="text-xs font-medium text-muted-foreground">Assignee</label>
-          {members.length > 0 ? (
-            <Select
-              value={task.assigneeId || 'unassigned'}
-              onValueChange={(v) => updateTask({ assigneeId: v === 'unassigned' ? null : v })}
-            >
-              <SelectTrigger className="h-9 mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <p className="text-sm mt-1 h-9 flex items-center">{task.assignee?.name || 'Unassigned'}</p>
-          )}
+          <Select
+            value={task.assigneeId || 'unassigned'}
+            onValueChange={(v) => updateTask({ assigneeId: v === 'unassigned' ? null : v })}
+          >
+            <SelectTrigger className="h-9 mt-1">
+              <span className="truncate">{task.assignee?.name || members.find((m) => m.id === task.assigneeId)?.name || 'Unassigned'}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
           <label className="text-xs font-medium text-muted-foreground">Topic</label>
-          {topics.length > 0 ? (
-            <Select
-              value={task.topicId || 'none'}
-              onValueChange={(v) => updateTask({ topicId: v === 'none' ? null : v })}
-            >
-              <SelectTrigger className="h-9 mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No topic</SelectItem>
-                {topics.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <p className="text-sm mt-1 h-9 flex items-center">{task.topic?.name || 'No topic'}</p>
-          )}
+          <Select
+            value={task.topicId || 'none'}
+            onValueChange={(v) => updateTask({ topicId: v === 'none' ? null : v })}
+          >
+            <SelectTrigger className="h-9 mt-1">
+              <span className="truncate">{task.topic?.name || topics.find((t) => t.id === task.topicId)?.name || 'No topic'}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No topic</SelectItem>
+              {topics.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
