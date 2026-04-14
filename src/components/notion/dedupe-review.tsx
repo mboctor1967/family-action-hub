@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { type DedupeReport, type Decisions, pickKeepId } from '@/lib/notion/dedupe-schema'
 import { DedupeClusterCard } from './dedupe-cluster-card'
 import { DedupePreviewDialog } from './dedupe-preview-dialog'
+import { DedupeSummary, type ReasonRow } from './dedupe-summary'
 import { Button } from '@/components/ui/button'
 import toast from 'react-hot-toast'
 
@@ -13,11 +14,15 @@ export type DedupeReviewProps = {
   initialDecisions: Decisions
 }
 
+const CHUNK_SIZE = 100
+
 export function DedupeReview({ reportId, report, initialDecisions }: DedupeReviewProps) {
   const router = useRouter()
   const [decisions, setDecisions] = useState<Decisions>(initialDecisions)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewRows, setPreviewRows] = useState<{ cluster: number; title: string; id: string }[] | null>(null)
+  const [previewTitle, setPreviewTitle] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
 
   const keepIds = useMemo(() => {
@@ -25,6 +30,19 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
     for (const c of report) m.set(c.cluster, pickKeepId(c))
     return m
   }, [report])
+
+  // Initialize collapsed set on mount: clusters where all non-KEEP pages are already archived.
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => {
+    const s = new Set<number>()
+    for (const c of report) {
+      const keepId = pickKeepId(c)
+      const allArchived = c.pages.every(
+        (p) => p.id === keepId || initialDecisions[p.id]?.status === 'archived',
+      )
+      if (allArchived) s.add(c.cluster)
+    }
+    return s
+  })
 
   const toggle = (id: string) => {
     setSelected((s) => {
@@ -34,41 +52,97 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
     })
   }
 
+  const toggleCollapse = (clusterNum: number) => {
+    setCollapsed((s) => {
+      const next = new Set(s)
+      if (next.has(clusterNum)) next.delete(clusterNum); else next.add(clusterNum)
+      return next
+    })
+  }
+
+  const collapseAll = () => setCollapsed(new Set(report.map((c) => c.cluster)))
+  const expandAll = () => setCollapsed(new Set())
+
+  async function archiveChunk(pageIds: string[]): Promise<{
+    ok: boolean
+    archived: number
+    failed: { pageId: string; error: string }[]
+    status?: number
+    error?: string
+  }> {
+    const res = await fetch(`/api/notion/dedupe/${reportId}/archive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageIds }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { ok: false, archived: 0, failed: [], status: res.status, error: data?.error }
+    }
+    return { ok: true, archived: data.archived ?? 0, failed: data.failed ?? [] }
+  }
+
   async function runArchive(pageIds: string[]) {
     if (pageIds.length === 0) return
-    if (pageIds.length > 100) {
-      toast.error('Select at most 100 pages per archive')
-      return
-    }
     setBusy(true)
+    const total = pageIds.length
+    const toastId = toast.loading(total > CHUNK_SIZE ? `Archiving 0/${total}…` : `Archiving ${total}…`)
+    let archivedTotal = 0
+    let failedTotal: { pageId: string; error: string }[] = []
+    let aborted = false
+    let abortMsg = ''
+
     try {
-      const res = await fetch(`/api/notion/dedupe/${reportId}/archive`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageIds }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data?.error || `Archive failed (${res.status})`)
-        return
-      }
-      toast.success(`Archived ${data.archived}${data.failed?.length ? `, ${data.failed.length} failed` : ''}`)
-      const now = new Date().toISOString()
-      setDecisions((prev) => {
-        const next = { ...prev }
-        const failedList: { pageId: string; error: string }[] = data.failed || []
-        const failedSet = new Set(failedList.map((f) => f.pageId))
-        for (const id of pageIds) {
-          if (!failedSet.has(id)) next[id] = { status: 'archived', at: now }
+      for (let i = 0; i < total; i += CHUNK_SIZE) {
+        const chunk = pageIds.slice(i, i + CHUNK_SIZE)
+        const result = await archiveChunk(chunk)
+        if (!result.ok) {
+          aborted = true
+          abortMsg = result.error || `Archive failed (${result.status})`
+          break
         }
-        for (const f of failedList) next[f.pageId] = { status: 'failed', at: now, error: f.error }
-        return next
-      })
+        archivedTotal += result.archived
+        failedTotal = failedTotal.concat(result.failed)
+
+        // Optimistic decisions update for this chunk
+        const now = new Date().toISOString()
+        const failedSet = new Set(result.failed.map((f) => f.pageId))
+        setDecisions((prev) => {
+          const next = { ...prev }
+          for (const id of chunk) {
+            if (!failedSet.has(id)) next[id] = { status: 'archived', at: now }
+          }
+          for (const f of result.failed) next[f.pageId] = { status: 'failed', at: now, error: f.error }
+          return next
+        })
+
+        if (total > CHUNK_SIZE) {
+          const done = Math.min(i + CHUNK_SIZE, total)
+          toast.loading(`Archiving ${done}/${total}…`, { id: toastId })
+        }
+      }
+
+      if (aborted) {
+        toast.error(
+          `${abortMsg}. Completed ${archivedTotal}/${total} before stopping${
+            failedTotal.length ? `, ${failedTotal.length} failed` : ''
+          }.`,
+          { id: toastId },
+        )
+      } else {
+        toast.success(
+          `Archived ${archivedTotal}${failedTotal.length ? `, ${failedTotal.length} failed` : ''}`,
+          { id: toastId },
+        )
+      }
+
       setSelected(new Set())
       router.refresh()
     } finally {
       setBusy(false)
       setPreviewOpen(false)
+      setPreviewRows(null)
+      setPreviewTitle(undefined)
     }
   }
 
@@ -78,17 +152,54 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
     return ids.size
   }, [report, selected])
 
+  const archiveCluster = (clusterNum: number) => {
+    const c = report.find((x) => x.cluster === clusterNum)
+    if (!c) return
+    const keepId = keepIds.get(clusterNum)!
+    const ids = c.pages
+      .filter((p) => p.id !== keepId && decisions[p.id]?.status !== 'archived')
+      .map((p) => p.id)
+    if (ids.length === 0) return
+    runArchive(ids)
+  }
+
+  const archiveReason = (row: ReasonRow) => {
+    if (row.pendingRows.length === 0) return
+    setPreviewRows(row.pendingRows)
+    setPreviewTitle(`Archive all pending — ${row.reason}`)
+    setPreviewOpen(true)
+  }
+
+  const openSelectedPreview = () => {
+    setPreviewRows(null)
+    setPreviewTitle(undefined)
+    setPreviewOpen(true)
+  }
+
+  const confirmPreview = () => {
+    if (previewRows) {
+      runArchive(previewRows.map((r) => r.id))
+    } else {
+      runArchive(Array.from(selected))
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <DedupeSummary report={report} decisions={decisions} busy={busy} onArchiveReason={archiveReason} />
       <div className="rounded-lg border bg-muted/30 p-3 text-sm">
         Tick DELETE rows to archive. KEEP rows are auto-picked (longest body, most recent edit) and locked.
       </div>
-      <div className="flex items-center justify-between">
-        <div className="text-sm">
-          Selected: <strong>{selected.size}</strong> pages across <strong>{selectedClusters}</strong> clusters
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={collapseAll}>Collapse all</Button>
+          <Button size="sm" variant="outline" onClick={expandAll}>Expand all</Button>
         </div>
-        <div className="flex gap-2">
-          <Button disabled={selected.size === 0 || busy} onClick={() => setPreviewOpen(true)}>
+        <div className="flex items-center gap-3">
+          <div className="text-sm">
+            Selected: <strong>{selected.size}</strong> pages across <strong>{selectedClusters}</strong> clusters
+          </div>
+          <Button disabled={selected.size === 0 || busy} onClick={openSelectedPreview}>
             Preview archive
           </Button>
         </div>
@@ -101,18 +212,28 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
             keepId={keepIds.get(c.cluster)!}
             decisions={decisions}
             selected={selected}
+            collapsed={collapsed.has(c.cluster)}
+            busy={busy}
             onToggle={toggle}
             onRetry={(id) => runArchive([id])}
+            onToggleCollapse={toggleCollapse}
+            onArchiveCluster={archiveCluster}
           />
         ))}
       </div>
       <DedupePreviewDialog
         open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        onConfirm={() => runArchive(Array.from(selected))}
+        onClose={() => {
+          setPreviewOpen(false)
+          setPreviewRows(null)
+          setPreviewTitle(undefined)
+        }}
+        onConfirm={confirmPreview}
         selected={selected}
         report={report}
         busy={busy}
+        explicitRows={previewRows ?? undefined}
+        title={previewTitle}
       />
     </div>
   )
