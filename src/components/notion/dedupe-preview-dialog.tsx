@@ -10,6 +10,8 @@ export function DedupePreviewDialog({
   selected,
   report,
   busy,
+  explicitRows,
+  title,
 }: {
   open: boolean
   onClose: () => void
@@ -17,17 +19,24 @@ export function DedupePreviewDialog({
   selected: Set<string>
   report: DedupeReport
   busy: boolean
+  explicitRows?: { cluster: number; title: string; id: string }[]
+  title?: string
 }) {
-  const rows: { cluster: number; title: string }[] = []
-  for (const c of report) {
-    for (const p of c.pages) if (selected.has(p.id)) rows.push({ cluster: c.cluster, title: p.title })
+  let rows: { cluster: number; title: string }[]
+  if (explicitRows) {
+    rows = explicitRows.map((r) => ({ cluster: r.cluster, title: r.title }))
+  } else {
+    rows = []
+    for (const c of report) {
+      for (const p of c.pages) if (selected.has(p.id)) rows.push({ cluster: c.cluster, title: p.title })
+    }
   }
   const clusters = new Set(rows.map((r) => r.cluster)).size
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Preview archive</DialogTitle>
+          <DialogTitle>{title ?? 'Preview archive'}</DialogTitle>
         </DialogHeader>
         <p className="text-sm">
           This will archive <strong>{rows.length}</strong> pages across <strong>{clusters}</strong> clusters.
