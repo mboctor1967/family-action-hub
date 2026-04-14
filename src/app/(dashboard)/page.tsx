@@ -29,6 +29,7 @@ import {
   Repeat,
   CalendarDays,
   Copy,
+  BookOpen,
 } from 'lucide-react'
 
 const formatAUD0 = (v: number) =>
@@ -385,6 +386,14 @@ export default async function HomePage() {
       <div>
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Other Tools</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <NavCard
+            title="Notion"
+            href="/notion"
+            icon={BookOpen}
+            iconColor="text-slate-700"
+            iconBg="bg-slate-100"
+            stats={[{ label: 'Tools', value: 1 }]}
+          />
           <NavCard
             title="Vehicle Logbook"
             href="/vehicles"
