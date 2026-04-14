@@ -5,6 +5,7 @@ import { type DedupeReport, type Decisions, pickKeepId } from '@/lib/notion/dedu
 import { DedupeClusterCard } from './dedupe-cluster-card'
 import { DedupePreviewDialog } from './dedupe-preview-dialog'
 import { DedupeSummary, type ReasonRow } from './dedupe-summary'
+import { DedupeLegend } from './dedupe-legend'
 import { Button } from '@/components/ui/button'
 import toast from 'react-hot-toast'
 
@@ -187,6 +188,7 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
   return (
     <div className="space-y-4">
       <DedupeSummary report={report} decisions={decisions} busy={busy} onArchiveReason={archiveReason} />
+      <DedupeLegend />
       <div className="rounded-lg border bg-muted/30 p-3 text-sm">
         Tick DELETE rows to archive. KEEP rows are auto-picked (longest body, most recent edit) and locked.
       </div>

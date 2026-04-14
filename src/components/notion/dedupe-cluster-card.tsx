@@ -4,6 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronRight, CheckCircle2, XCircle, RotateCcw } from 'lucide-react'
+import { explainCluster } from './dedupe-legend'
 
 export type ClusterCardProps = {
   cluster: DedupeCluster
@@ -63,6 +64,7 @@ export function DedupeClusterCard({
           </Button>
         </div>
       </div>
+      <div className="p-3 pt-0 text-xs text-muted-foreground">{explainCluster(cluster)}</div>
       {!collapsed && (
         <div className="divide-y">
           {cluster.pages.map((p) => {
