@@ -48,6 +48,9 @@ type Enriched = {
   bodyHash: string
   bodyLen: number
   blockCount: number
+  imageCount: number
+  fileCount: number
+  embedCount: number
   shingles: Set<string>
   created: string
   edited: string
@@ -61,17 +64,29 @@ type Cluster = {
   reason: string
 }
 
+const MAX_RETRIES = 6
+
 async function notion(path: string, body?: any): Promise<any> {
-  const res = await fetch(`${API}${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: HEADERS,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(`${API}${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: HEADERS,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    if (res.ok) return res.json()
+
+    // Rate limit or transient 5xx — retry with backoff honoring Retry-After
+    if ((res.status === 429 || res.status >= 500) && attempt < MAX_RETRIES) {
+      const retryAfter = Number(res.headers.get('retry-after')) || 0
+      const backoffMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(2000 * Math.pow(2, attempt), 30000)
+      await new Promise((r) => setTimeout(r, backoffMs))
+      continue
+    }
+
     const text = await res.text()
     throw new Error(`${res.status} ${path}: ${text}`)
   }
-  return res.json()
+  throw new Error(`${path}: exhausted ${MAX_RETRIES} retries`)
 }
 
 async function enumeratePages(): Promise<NotionPage[]> {
@@ -115,19 +130,29 @@ function normalize(s: string): string {
 
 const MAX_DEPTH = 3
 
-/** Recursive body extraction + block count. Handles more block types than rich_text-only. */
-async function fetchBodyText(pageId: string, depth = 0): Promise<{ text: string; blockCount: number }> {
-  if (depth > MAX_DEPTH) return { text: '', blockCount: 0 }
+type BodyStats = { text: string; blockCount: number; imageCount: number; fileCount: number; embedCount: number }
+
+/** Recursive body extraction + block count + media counts. */
+async function fetchBodyText(pageId: string, depth = 0): Promise<BodyStats> {
+  if (depth > MAX_DEPTH) return { text: '', blockCount: 0, imageCount: 0, fileCount: 0, embedCount: 0 }
   const parts: string[] = []
   let blockCount = 0
+  let imageCount = 0
+  let fileCount = 0
+  let embedCount = 0
   let cursor: string | undefined
   while (true) {
     const qs = cursor ? `?start_cursor=${cursor}&page_size=100` : '?page_size=100'
     let res: any
     try {
       res = await notion(`/blocks/${pageId}/children${qs}`)
-    } catch {
-      return { text: parts.join('\n'), blockCount }
+    } catch (e: any) {
+      // Permission denied (404) is expected for pages the integration wasn't invited to; treat as empty.
+      // Anything else is a real error — surface it so we don't silently mark real content as empty.
+      if (/^4(04|03)/.test(String(e.message))) {
+        return { text: parts.join('\n'), blockCount, imageCount, fileCount, embedCount }
+      }
+      throw e
     }
     for (const block of res.results) {
       blockCount++
@@ -160,6 +185,8 @@ async function fetchBodyText(pageId: string, depth = 0): Promise<{ text: string;
 
       // image / file / video / pdf: caption rich_text + file URL/name
       if (['image', 'file', 'video', 'pdf'].includes(block.type)) {
+        if (block.type === 'image') imageCount++
+        else fileCount++
         if (Array.isArray(body.caption)) parts.push(body.caption.map((r: any) => r.plain_text || '').join(''))
         const name = body.external?.url || body.file?.url || body.name
         if (typeof name === 'string') parts.push(name)
@@ -167,6 +194,7 @@ async function fetchBodyText(pageId: string, depth = 0): Promise<{ text: string;
 
       // bookmark / embed / link_preview: url + caption
       if (['bookmark', 'embed', 'link_preview'].includes(block.type)) {
+        embedCount++
         if (typeof body.url === 'string') parts.push(body.url)
         if (Array.isArray(body.caption)) parts.push(body.caption.map((r: any) => r.plain_text || '').join(''))
       }
@@ -176,12 +204,15 @@ async function fetchBodyText(pageId: string, depth = 0): Promise<{ text: string;
         const child = await fetchBodyText(block.id, depth + 1)
         if (child.text) parts.push(child.text)
         blockCount += child.blockCount
+        imageCount += child.imageCount
+        fileCount += child.fileCount
+        embedCount += child.embedCount
       }
     }
     if (!res.has_more) break
     cursor = res.next_cursor
   }
-  return { text: parts.join('\n').trim(), blockCount }
+  return { text: parts.join('\n').trim(), blockCount, imageCount, fileCount, embedCount }
 }
 
 function shingles(text: string, k = SHINGLE_SIZE): Set<string> {
@@ -207,9 +238,9 @@ function hash(s: string): string {
   return createHash('sha256').update(s).digest('hex').slice(0, 16)
 }
 
-/** Page is empty only if both its extracted text is tiny AND it has almost no blocks. */
+/** Page is empty only if text is tiny, block count is trivial, AND no media. */
 function isEmpty(p: Enriched): boolean {
-  return p.bodyLen < 20 && p.blockCount < 2
+  return p.bodyLen < 20 && p.blockCount < 2 && p.imageCount === 0 && p.fileCount === 0 && p.embedCount === 0
 }
 
 function cluster(pages: Enriched[]): Cluster[] {
@@ -268,9 +299,13 @@ function cluster(pages: Enriched[]): Cluster[] {
   return clusters.sort((a, b) => b.pages.length - a.pages.length || b.confidence - a.confidence)
 }
 
+function effectiveSize(p: Enriched): number {
+  return p.bodyLen + 500 * (p.imageCount + p.fileCount + p.embedCount)
+}
+
 function pickKeep(group: Enriched[]): Enriched {
-  // Prefer longest body; tie-break on most recent edit.
-  return [...group].sort((a, b) => b.bodyLen - a.bodyLen || b.edited.localeCompare(a.edited))[0]
+  // Prefer largest effective size (text + media weight); tie-break on most recent edit.
+  return [...group].sort((a, b) => effectiveSize(b) - effectiveSize(a) || b.edited.localeCompare(a.edited))[0]
 }
 
 function csvEscape(v: string): string {
@@ -286,14 +321,14 @@ async function main() {
 
   const enriched: Enriched[] = []
   let done = 0
-  const CONCURRENCY = 4
+  const CONCURRENCY = 2
   const queue = [...pages]
   async function worker() {
     while (queue.length) {
       const p = queue.shift()!
       try {
         const title = extractTitle(p)
-        const { text: body, blockCount } = await fetchBodyText(p.id)
+        const { text: body, blockCount, imageCount, fileCount, embedCount } = await fetchBodyText(p.id)
         const titleNorm = normalize(title)
         enriched.push({
           id: p.id,
@@ -304,6 +339,9 @@ async function main() {
           bodyHash: hash(normalize(body)),
           bodyLen: body.length,
           blockCount,
+          imageCount,
+          fileCount,
+          embedCount,
           shingles: shingles(body),
           created: p.created_time,
           edited: p.last_edited_time,
@@ -341,6 +379,10 @@ async function main() {
           title: p.title,
           url: p.url,
           bodyLen: p.bodyLen,
+          blockCount: p.blockCount,
+          imageCount: p.imageCount,
+          fileCount: p.fileCount,
+          embedCount: p.embedCount,
           created: p.created,
           edited: p.edited,
           parent: p.parentType,
@@ -353,7 +395,7 @@ async function main() {
 
   // CSV
   const csvPath = join(outDir, `dedupe-${ts}.csv`)
-  const rows = ['cluster,confidence,reason,role,title,url,body_len,created,edited,parent']
+  const rows = ['cluster,confidence,reason,role,title,url,body_len,blocks,images,files,embeds,created,edited,parent']
   for (const c of clusters) {
     const keep = pickKeep(c.pages)
     for (const p of c.pages) {
@@ -367,6 +409,10 @@ async function main() {
           csvEscape(p.title),
           p.url,
           p.bodyLen,
+          p.blockCount,
+          p.imageCount,
+          p.fileCount,
+          p.embedCount,
           p.created,
           p.edited,
           p.parentType,
