@@ -17,6 +17,10 @@ export default auth((req) => {
   }
 
   if (!isLoggedIn && !isOnLogin) {
+    // API routes: return JSON 401 instead of an HTML login redirect so fetch/XHR callers get a parseable error.
+    if (req.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
