@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { financialAccounts, financialStatements } from '@/lib/db/schema'
+import { financialAccounts, financialStatements, financialTransactions } from '@/lib/db/schema'
 import { eq, and, sql } from 'drizzle-orm'
 
 export async function GET() {
@@ -12,22 +12,45 @@ export async function GET() {
   // Get all accounts
   const allAccounts = await db.select().from(financialAccounts).orderBy(financialAccounts.bankName)
 
-  // Get all statements with their periods
+  // Find months that still contain duplicate transactions (same account, same date+amount+description).
+  // Returned as a Set of `${account_id}|${YYYY-MM}` keys for O(1) lookup.
+  const dupMonthsRaw = await db.execute(sql`
+    SELECT account_id, to_char(transaction_date, 'YYYY-MM') AS ym
+    FROM financial_transactions
+    GROUP BY account_id, transaction_date, amount, description_raw, to_char(transaction_date, 'YYYY-MM')
+    HAVING count(*) > 1
+  `) as any
+  const dupMonthKeys = new Set<string>(
+    (dupMonthsRaw.rows ?? dupMonthsRaw ?? []).map((r: any) => `${r.account_id}|${r.ym}`)
+  )
+
+  // Get all statements with their periods + file info
   const statements = await db.select({
+    id: financialStatements.id,
+    fileName: financialStatements.fileName,
     accountId: financialStatements.accountId,
     statementStart: financialStatements.statementStart,
     statementEnd: financialStatements.statementEnd,
     needsReview: financialStatements.needsReview,
+    sourceType: financialStatements.sourceType,
+    importedAt: financialStatements.importedAt,
   })
     .from(financialStatements)
     .where(eq(financialStatements.isDuplicate, false))
 
-  // Build coverage map: 24 months back
+  // Build coverage map grouped by Australian Financial Year (Jul–Jun).
+  // Default: current FY + previous 2 FYs = 36 months starting Jul of (current FY - 2).
   const now = new Date()
+  const currentFyStartYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1 // Jul-start
+  const FY_COUNT = 3
   const months: string[] = []
-  for (let i = 23; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  for (let fy = FY_COUNT - 1; fy >= 0; fy--) {
+    const startYear = currentFyStartYear - fy
+    for (let m = 6; m < 18; m++) {
+      // Jul (month index 6) through Jun-of-next-year (month 17 → rolls to next year's Jun)
+      const d = new Date(startYear, m, 1)
+      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    }
   }
 
   const coverage = allAccounts.map((account) => {
@@ -55,11 +78,39 @@ export async function GET() {
         return {
           month,
           status: covering.needsReview ? 'needs_review' as const : 'imported' as const,
+          has_duplicates: dupMonthKeys.has(`${account.id}|${month}`),
         }
       }
 
-      return { month, status: 'missing' as const }
+      return { month, status: 'missing' as const, has_duplicates: false }
     })
+
+    // Per-statement coverage within the same month window
+    const perStatement = accountStatements.map((s) => {
+      const smCoverage = months.map((month) => {
+        const [year, mon] = month.split('-').map(Number)
+        const monthStart = new Date(year, mon - 1, 1)
+        const monthEnd = new Date(year, mon, 0)
+        if (monthStart > now) return { month, status: 'future' as const }
+        if (!s.statementStart || !s.statementEnd) return { month, status: 'missing' as const }
+        const start = new Date(s.statementStart)
+        const end = new Date(s.statementEnd)
+        if (start <= monthEnd && end >= monthStart) {
+          return { month, status: s.needsReview ? ('needs_review' as const) : ('imported' as const) }
+        }
+        return { month, status: 'missing' as const }
+      })
+      return {
+        id: s.id,
+        file_name: s.fileName,
+        source_type: s.sourceType,
+        statement_start: s.statementStart,
+        statement_end: s.statementEnd,
+        imported_at: s.importedAt,
+        needs_review: s.needsReview,
+        months: smCoverage,
+      }
+    }).sort((a, b) => String(a.statement_start || '').localeCompare(String(b.statement_start || '')))
 
     return {
       account_id: account.id,
@@ -68,6 +119,7 @@ export async function GET() {
       account_number_last4: account.accountNumberLast4,
       account_type: account.accountType,
       months: monthCoverage,
+      statements: perStatement,
     }
   })
 
