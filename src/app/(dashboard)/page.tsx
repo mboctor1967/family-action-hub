@@ -8,6 +8,7 @@ import {
   financialStatements,
   scanRuns,
   emailsScanned,
+  notionDedupeReports,
 } from '@/lib/db/schema'
 import { inArray, sql, eq, desc, isNull, and, gte, lte, lt } from 'drizzle-orm'
 import { NavCard } from '@/components/ui/nav-card'
@@ -72,6 +73,7 @@ export default async function HomePage() {
     coverageRow,
     taxRow,
     unreviewedTriageCount,
+    latestDedupe,
   ] = await Promise.all([
     db.select({ n: sql<number>`count(*)` }).from(tasks).where(inArray(tasks.status, ['new', 'in_progress', 'waiting'])).then(r => Number(r[0]?.n || 0)),
     db.select({ n: sql<number>`count(*)` }).from(tasks).where(and(inArray(tasks.status, ['new', 'in_progress', 'waiting']), eq(tasks.priority, 'urgent'))).then(r => Number(r[0]?.n || 0)),
@@ -135,6 +137,14 @@ export default async function HomePage() {
     )).then(r => r[0] || { total: 0, count: 0 }) : Promise.resolve({ total: 0, count: 0 }),
 
     db.select({ n: sql<number>`count(*)` }).from(emailsScanned).where(eq(emailsScanned.triageStatus, 'unreviewed')).then(r => Number(r[0]?.n || 0)),
+
+    isAdmin ? db.select({
+      uploadedAt: notionDedupeReports.uploadedAt,
+      scanTimestamp: notionDedupeReports.scanTimestamp,
+      totalClusters: notionDedupeReports.totalClusters,
+      totalPages: notionDedupeReports.totalPages,
+      decisions: notionDedupeReports.decisions,
+    }).from(notionDedupeReports).orderBy(desc(notionDedupeReports.uploadedAt)).limit(1).then(r => r[0] || null) : Promise.resolve(null),
   ])
 
   const lastScanLabel = lastScan?.completedAt
@@ -145,6 +155,18 @@ export default async function HomePage() {
     : '—'
   const topCat = topCategoryRow?.category || '—'
   const monthSpending = Number(topCategoryRow?.total || 0)
+
+  const dedupeStats = (() => {
+    if (!latestDedupe) return null
+    const dec = (latestDedupe.decisions ?? {}) as Record<string, { status: string }>
+    const archived = Object.values(dec).filter((d) => d.status === 'archived').length
+    const potentialDeletes = Math.max(0, latestDedupe.totalPages - latestDedupe.totalClusters)
+    const pending = Math.max(0, potentialDeletes - archived)
+    const scanDate = latestDedupe.uploadedAt
+      ? new Date(latestDedupe.uploadedAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+      : '—'
+    return { pending, potentialDeletes, archived, scanDate }
+  })()
 
   return (
     <div className="space-y-6">
@@ -392,7 +414,14 @@ export default async function HomePage() {
             icon={BookOpen}
             iconColor="text-slate-700"
             iconBg="bg-slate-100"
-            stats={[{ label: 'Tools', value: 1 }]}
+            stats={
+              dedupeStats
+                ? [
+                    { label: 'Pending deletes', value: dedupeStats.pending },
+                    { label: `Scanned (${dedupeStats.scanDate})`, value: dedupeStats.potentialDeletes },
+                  ]
+                : [{ label: 'No scan yet', value: '—' }]
+            }
           />
           <NavCard
             title="Vehicle Logbook"
