@@ -1,7 +1,8 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { type DedupeReport, type Decisions, pickKeepId } from '@/lib/notion/dedupe-schema'
+import { type DedupeReport, type DedupePage, type Decisions, pickKeepId, hasMedia } from '@/lib/notion/dedupe-schema'
+import { useCallback } from 'react'
 import { DedupeClusterCard } from './dedupe-cluster-card'
 import { DedupePreviewDialog } from './dedupe-preview-dialog'
 import { DedupeSummary, type ReasonRow } from './dedupe-summary'
@@ -25,6 +26,13 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
   const [previewRows, setPreviewRows] = useState<{ cluster: number; title: string; id: string }[] | null>(null)
   const [previewTitle, setPreviewTitle] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  const [minChars, setMinChars] = useState(25)
+  const [hideIneligible, setHideIneligible] = useState(false)
+
+  const isEligible = useCallback(
+    (p: DedupePage) => p.bodyLen >= minChars || hasMedia(p),
+    [minChars],
+  )
 
   const keepIds = useMemo(() => {
     const m = new Map<number, string>()
@@ -63,6 +71,36 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
 
   const collapseAll = () => setCollapsed(new Set(report.map((c) => c.cluster)))
   const expandAll = () => setCollapsed(new Set())
+
+  const eligibleStats = useMemo(() => {
+    let eligible = 0
+    let excluded = 0
+    for (const c of report) {
+      const keepId = keepIds.get(c.cluster)
+      for (const p of c.pages) {
+        if (p.id === keepId) continue
+        if (decisions[p.id]?.status === 'archived') continue
+        if (isEligible(p)) eligible++
+        else excluded++
+      }
+    }
+    return { eligible, excluded }
+  }, [report, keepIds, decisions, isEligible])
+
+  const selectAllEligible = () => {
+    const next = new Set<string>()
+    for (const c of report) {
+      const keepId = keepIds.get(c.cluster)
+      for (const p of c.pages) {
+        if (p.id === keepId) continue
+        if (decisions[p.id]?.status === 'archived') continue
+        if (isEligible(p)) next.add(p.id)
+      }
+    }
+    setSelected(next)
+  }
+
+  const clearSelection = () => setSelected(new Set())
 
   async function archiveChunk(pageIds: string[]): Promise<{
     ok: boolean
@@ -158,7 +196,7 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
     if (!c) return
     const keepId = keepIds.get(clusterNum)!
     const ids = c.pages
-      .filter((p) => p.id !== keepId && decisions[p.id]?.status !== 'archived')
+      .filter((p) => p.id !== keepId && decisions[p.id]?.status !== 'archived' && isEligible(p))
       .map((p) => p.id)
     if (ids.length === 0) return
     runArchive(ids)
@@ -187,10 +225,44 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
 
   return (
     <div className="space-y-4">
-      <DedupeSummary report={report} decisions={decisions} busy={busy} onArchiveReason={archiveReason} />
+      <DedupeSummary report={report} decisions={decisions} busy={busy} isEligible={isEligible} onArchiveReason={archiveReason} />
       <DedupeLegend />
-      <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-        Tick DELETE rows to archive. KEEP rows are auto-picked (longest body, most recent edit) and locked.
+      <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-2">
+        <div>
+          Tick DELETE rows to archive. KEEP rows are auto-picked (largest effective size = text + media, most recent edit) and locked.
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Min chars to auto-select:</span>
+            <input
+              type="number"
+              min={0}
+              value={minChars}
+              onChange={(e) => setMinChars(Math.max(0, Number(e.target.value) || 0))}
+              className="w-20 rounded border px-2 py-1 text-sm"
+            />
+          </label>
+          <span className="text-xs text-muted-foreground">
+            DELETEs ≥ {minChars} chars or with any image/file/embed → eligible.
+            <strong className="text-foreground"> {eligibleStats.eligible}</strong> eligible,{' '}
+            <strong className="text-foreground">{eligibleStats.excluded}</strong> excluded.
+          </span>
+          <Button size="sm" variant="outline" disabled={busy || eligibleStats.eligible === 0} onClick={selectAllEligible}>
+            Select all eligible ({eligibleStats.eligible})
+          </Button>
+          <Button size="sm" variant="outline" disabled={busy || selected.size === 0} onClick={clearSelection}>
+            Clear selection
+          </Button>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto">
+            <input
+              type="checkbox"
+              checked={hideIneligible}
+              onChange={(e) => setHideIneligible(e.target.checked)}
+              className="rounded"
+            />
+            Hide ineligible DELETE rows
+          </label>
+        </div>
       </div>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
@@ -216,6 +288,8 @@ export function DedupeReview({ reportId, report, initialDecisions }: DedupeRevie
             selected={selected}
             collapsed={collapsed.has(c.cluster)}
             busy={busy}
+            isEligible={isEligible}
+            hideIneligible={hideIneligible}
             onToggle={toggle}
             onRetry={(id) => runArchive([id])}
             onToggleCollapse={toggleCollapse}

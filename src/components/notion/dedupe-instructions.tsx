@@ -30,7 +30,7 @@ export function DedupeInstructions() {
       </button>
       {!collapsed && (
         <ol className="mt-2 space-y-1 list-decimal list-inside text-muted-foreground">
-          <li><strong>Scan</strong> — run <code>npm run dedupe:scan</code> in your terminal. Produces a JSON report in <code>scripts/reports/</code>. Takes 2–5 minutes. Runs on your laptop because Vercel can&apos;t host long-running jobs.</li>
+          <li><strong>Scan</strong> — run <code>npm run dedupe:scan</code> in your terminal. Produces a JSON report in <code>scripts/reports/</code>. Takes 45–90 minutes (scanner now recurses into every child block to catch nested duplicates). Runs on your laptop because Vercel can&apos;t host long-running jobs.</li>
           <li><strong>Upload</strong> — click the button below and pick the JSON file.</li>
           <li><strong>Review</strong> — tick which DELETE rows to archive. KEEP rows are auto-picked (longest body, most recent edit) and locked.</li>
           <li><strong>Archive</strong> — preview, then confirm. Archived pages land in Notion trash (30-day restore).</li>

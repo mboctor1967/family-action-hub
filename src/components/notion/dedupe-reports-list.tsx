@@ -24,8 +24,13 @@ export function DedupeReportsList({ reports }: { reports: Report[] }) {
               <div className="text-xs text-muted-foreground">{r.filename}</div>
             </div>
             <div className="text-sm text-right">
-              <div>{r.totalClusters} clusters · {r.totalPages} pages</div>
-              <div className="text-xs text-muted-foreground">{r.archivedCount} archived</div>
+              <div>
+                <strong>{Math.max(0, r.totalPages - r.totalClusters - r.archivedCount).toLocaleString()}</strong> pending deletes
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {r.totalClusters.toLocaleString()} clusters · {r.totalPages.toLocaleString()} pages ·{' '}
+                {Math.max(0, r.totalPages - r.totalClusters).toLocaleString()} candidates · {r.archivedCount.toLocaleString()} archived
+              </div>
             </div>
           </Link>
         </li>
