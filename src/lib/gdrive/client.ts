@@ -72,36 +72,41 @@ export async function listFiles(
       const files = res.data.files || []
 
       for (const file of files) {
-        const fileType = SUPPORTED_MIME_TYPES[file.mimeType || '']
+        const name = file.name || ''
+        const lower = name.toLowerCase()
+        // Extension wins over mime type — Drive often labels QIF/QFX as text/plain, which
+        // would otherwise be misclassified as CSV via SUPPORTED_MIME_TYPES.
+        let fileType: DriveFile['fileType'] | undefined
+        let mime = file.mimeType || ''
+        if (lower.endsWith('.qif')) {
+          fileType = 'qif'
+          mime = mime || 'application/qif'
+        } else if (lower.endsWith('.qfx') || lower.endsWith('.ofx')) {
+          fileType = 'qfx'
+          mime = mime || 'application/x-ofx'
+        } else if (lower.endsWith('.csv')) {
+          fileType = 'csv'
+          mime = mime || 'text/csv'
+        } else if (lower.endsWith('.pdf')) {
+          fileType = 'pdf'
+          mime = mime || 'application/pdf'
+        } else if (SUPPORTED_MIME_TYPES[mime]) {
+          fileType = SUPPORTED_MIME_TYPES[mime]
+        }
+
         if (fileType) {
-          // Also check file extension for CSVs that might have wrong mime type
           allFiles.push({
             id: file.id!,
-            name: file.name!,
-            mimeType: file.mimeType!,
+            name,
+            mimeType: mime,
             md5Checksum: file.md5Checksum || '',
             size: parseInt(file.size || '0', 10),
             fileType,
           })
-        } else if (file.name?.toLowerCase().endsWith('.csv')) {
-          allFiles.push({
-            id: file.id!,
-            name: file.name!,
-            mimeType: file.mimeType || 'text/csv',
-            md5Checksum: file.md5Checksum || '',
-            size: parseInt(file.size || '0', 10),
-            fileType: 'csv',
-          })
-        } else if (file.name?.toLowerCase().endsWith('.qfx') || file.name?.toLowerCase().endsWith('.ofx')) {
-          allFiles.push({
-            id: file.id!,
-            name: file.name!,
-            mimeType: file.mimeType || 'application/x-ofx',
-            md5Checksum: file.md5Checksum || '',
-            size: parseInt(file.size || '0', 10),
-            fileType: 'qfx',
-          })
-        } else if (file.mimeType === 'application/vnd.google-apps.folder') {
+          continue
+        }
+
+        if (file.mimeType === 'application/vnd.google-apps.folder') {
           await listFolder(file.id!)
         }
       }

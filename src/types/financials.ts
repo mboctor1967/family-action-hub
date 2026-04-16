@@ -202,6 +202,8 @@ export interface ParsedTransaction {
   subscription_frequency: SubscriptionFrequency | null
   is_tax_deductible: boolean
   tax_category: TaxCategory | null
+  /** Bank-assigned transaction ID (OFX/QFX FITID). Preferred fingerprint source when present. */
+  fitid?: string | null
 }
 
 export interface ParsedStatement {
@@ -231,7 +233,7 @@ export interface DriveFile {
   mimeType: string
   md5Checksum: string
   size: number
-  fileType: 'pdf' | 'csv' | 'qfx' | 'unknown'
+  fileType: 'pdf' | 'csv' | 'qfx' | 'qif' | 'unknown'
 }
 
 export const SUPPORTED_MIME_TYPES: Record<string, DriveFile['fileType']> = {
