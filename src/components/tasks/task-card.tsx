@@ -187,20 +187,23 @@ export function TaskCard({ task }: TaskCardProps) {
                 </span>
               )}
 
-              {task.gmailLink && (
+              {task.gmailLink && (() => {
+                const gmailLink = task.gmailLink
+                return (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    window.open(task.gmailLink, '_blank', 'noopener,noreferrer')
+                    window.open(gmailLink, '_blank', 'noopener,noreferrer')
                   }}
                   className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
                 >
                   <ExternalLink className="h-3 w-3" />
                   Email
                 </button>
-              )}
+                )
+              })()}
             </div>
           </div>
 
