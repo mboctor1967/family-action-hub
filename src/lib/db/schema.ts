@@ -334,9 +334,11 @@ export const financialTransactions = pgTable('financial_transactions', {
   aiSuggestedAtoCodePersonal: text('ai_suggested_ato_code_personal'),
   atoCodeCompany: text('ato_code_company'), // confirmed company ATO code
   aiSuggestedAtoCodeCompany: text('ai_suggested_ato_code_company'),
+  fingerprint: text('fingerprint'), // hash:sha256 or fitid:bankId — dedup key per account
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   uniqueIndex('fin_txn_dedup').on(table.accountId, table.transactionDate, table.amount, table.descriptionRaw, table.rowIndex),
+  uniqueIndex('fin_txn_fingerprint').on(table.accountId, table.fingerprint),
   index('idx_fin_txn_date').on(table.transactionDate),
   index('idx_fin_txn_account').on(table.accountId),
   index('idx_fin_txn_statement').on(table.statementId),
