@@ -23,6 +23,11 @@ vi.mock('@/lib/db/schema', () => ({
 
 import { confirmEmailAsTask } from '../triage-actions'
 
+vi.mock('fs', () => ({
+  readFileSync: vi.fn(() => JSON.stringify({ user_feedback_rules: [] })),
+  writeFileSync: vi.fn(),
+}))
+
 describe('confirmEmailAsTask', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -75,5 +80,31 @@ describe('confirmEmailAsTask', () => {
     expect(taskId).toBe('task-1')
     expect(insertValues).toHaveBeenCalled()          // task insert
     expect(updateSet).toHaveBeenCalledWith({ triageStatus: 'confirmed' })
+  })
+})
+
+describe('rejectEmail', () => {
+  it('sets triageStatus=rejected and records feedback', async () => {
+    const updateSet = vi.fn().mockReturnValue({ where: () => Promise.resolve() })
+    const insertValues = vi.fn().mockResolvedValue(undefined)
+
+    const tx: any = {
+      select: vi.fn().mockReturnValue({
+        from: () => ({ where: () => ({ limit: () => Promise.resolve([{
+          id: 'e1',
+          triageStatus: 'unreviewed',
+          fromAddress: 'news@example.com',
+          subject: 'Weekly digest',
+        }]) }) }),
+      }),
+      insert: vi.fn().mockReturnValue({ values: insertValues }),
+      update: vi.fn().mockReturnValue({ set: updateSet }),
+    }
+
+    const { rejectEmail } = await import('../triage-actions')
+    await rejectEmail(tx, 'e1')
+
+    expect(updateSet).toHaveBeenCalledWith({ triageStatus: 'rejected' })
+    expect(insertValues).toHaveBeenCalled()
   })
 })

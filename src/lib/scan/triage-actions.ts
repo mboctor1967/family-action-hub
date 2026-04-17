@@ -1,4 +1,6 @@
 import { eq } from 'drizzle-orm'
+import { readFileSync, writeFileSync } from 'fs'
+import { join } from 'path'
 import { emailsScanned, tasks, topics, profiles, aiFeedback } from '@/lib/db/schema'
 
 type Tx = {
@@ -77,4 +79,48 @@ export async function confirmEmailAsTask(
   })
 
   return task.id
+}
+
+export async function rejectEmail(tx: Tx, emailId: string): Promise<void> {
+  const [email] = await tx.select().from(emailsScanned).where(eq(emailsScanned.id, emailId)).limit(1)
+  if (!email) throw new Error(`Email not found: ${emailId}`)
+  if (email.triageStatus && email.triageStatus !== 'unreviewed') {
+    throw new Error(`Email ${emailId} already triaged (${email.triageStatus})`)
+  }
+
+  await tx.update(emailsScanned)
+    .set({ triageStatus: 'rejected' })
+    .where(eq(emailsScanned.id, emailId))
+
+  await tx.insert(aiFeedback).values({
+    emailId: email.id,
+    field: 'classification',
+    aiValue: 'actionable',
+    userCorrection: 'not_actionable',
+  })
+
+  appendRejectionToConfig(email)
+}
+
+function appendRejectionToConfig(email: { fromAddress?: string | null; subject?: string | null }) {
+  try {
+    const configPath = join(process.cwd(), 'config', 'classification.json')
+    const config = JSON.parse(readFileSync(configPath, 'utf-8'))
+    const fromAddress = email.fromAddress || ''
+    const fromDomain = fromAddress.includes('@') ? fromAddress.split('@')[1] : fromAddress
+    const learnedRule = {
+      sender: fromDomain,
+      subject_pattern: email.subject || '',
+      learned: 'not actionable',
+      original_classification: 'actionable',
+      corrected_to: 'noise/informational',
+      date: new Date().toISOString().split('T')[0],
+    }
+    const realRules = config.user_feedback_rules.filter((r: any) => typeof r === 'object')
+    realRules.push(learnedRule)
+    config.user_feedback_rules = realRules
+    writeFileSync(configPath, JSON.stringify(config, null, 2))
+  } catch (err) {
+    console.error('Failed to update classification config:', err)
+  }
 }
