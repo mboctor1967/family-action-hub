@@ -175,6 +175,46 @@
       "original_classification": "actionable",
       "corrected_to": "noise/informational",
       "date": "2026-04-12"
+    },
+    {
+      "sender": "vercel.com",
+      "subject_pattern": "Failed production deployment on team 'Maged Boctor's projects'",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-17"
+    },
+    {
+      "sender": "linkedin.com",
+      "subject_pattern": "I want to connect",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-17"
+    },
+    {
+      "sender": "godaddy.com",
+      "subject_pattern": "Here's how to reset your password.",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-17"
+    },
+    {
+      "sender": "paypal.com.au",
+      "subject_pattern": "Your account processed a payout with a small deposit confirmation,  and a $980 activation fee will be charged. If this is unauthorized,  contact us at +1 (800) 909-8635.",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-17"
+    },
+    {
+      "sender": "dropbox.com",
+      "subject_pattern": "Chris Rice shared \"Mike files\" with you",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-17"
     }
   ]
 }

@@ -50,6 +50,7 @@ export function parseQFX(content: string, fileName: string): QFXParseResult {
       const description = memo || name || ''
 
       transactions.push({
+        fitid: fitId || null,
         transaction_date: isoDate,
         description_raw: description,
         amount: amountNum,
@@ -136,9 +137,9 @@ function parseOFXDate(raw: string): string | null {
 
 function detectBank(org: string | null, bankId: string | null, fileName: string): string {
   const text = `${org || ''} ${bankId || ''} ${fileName}`.toLowerCase()
-  if (/commbank|commonwealth|cba/.test(text)) return 'CommBank'
+  if (/commbank|commonwealth|cba/.test(text)) return 'CBA'
   if (/\banz\b/.test(text)) return 'ANZ'
-  if (/westpac|wbc/.test(text)) return 'Westpac'
+  if (/westpac|wbc/.test(text)) return 'WBC'
   if (/\bnab\b|national australia/.test(text)) return 'NAB'
   if (/st\.?\s*george/.test(text)) return 'St.George'
   if (/macquarie/.test(text)) return 'Macquarie'

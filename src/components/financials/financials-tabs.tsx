@@ -27,7 +27,7 @@ export function FinancialsTabs() {
         </Link>
       </div>
 
-      <AccountFilter onFilterChange={handleFilterChange} />
+      <AccountFilter onFilterChange={handleFilterChange} storageKey="financials-overview" />
 
       <OverviewTab filter={appliedFilter} filterKey={filterKey} />
     </div>

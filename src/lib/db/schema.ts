@@ -323,6 +323,8 @@ export const financialTransactions = pgTable('financial_transactions', {
   taxCategory: text('tax_category'), // work_expense, investment, donation
   needsReview: boolean('needs_review').default(false),
   rowIndex: integer('row_index'),
+  /** Content fingerprint for dedup — `fitid:{x}` when bank provided one, else sha256 of date|amount|description|nth-on-day. */
+  fingerprint: text('fingerprint'),
   // v4 additions
   amountExGst: numeric('amount_ex_gst', { precision: 12, scale: 2 }),
   gstAmount: numeric('gst_amount', { precision: 12, scale: 2 }),
@@ -334,7 +336,6 @@ export const financialTransactions = pgTable('financial_transactions', {
   aiSuggestedAtoCodePersonal: text('ai_suggested_ato_code_personal'),
   atoCodeCompany: text('ato_code_company'), // confirmed company ATO code
   aiSuggestedAtoCodeCompany: text('ai_suggested_ato_code_company'),
-  fingerprint: text('fingerprint'), // hash:sha256 or fitid:bankId — dedup key per account
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   uniqueIndex('fin_txn_dedup').on(table.accountId, table.transactionDate, table.amount, table.descriptionRaw, table.rowIndex),

@@ -155,12 +155,16 @@ export function CategoryManagerView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newCategoryName.trim(), subcategories: [] }),
       })
-      if (!res.ok) throw new Error('Failed')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data?.error || `Failed (${res.status})`)
+        return
+      }
       toast.success('Category added')
       setNewCategoryName('')
       loadData()
-    } catch {
-      toast.error('Add failed')
+    } catch (e: any) {
+      toast.error(e?.message ? `Add failed: ${e.message}` : 'Add failed (network error)')
     }
   }
 
