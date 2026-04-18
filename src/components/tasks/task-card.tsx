@@ -42,9 +42,10 @@ interface TaskCardProps {
     subtasks?: { id: string; title: string; isComplete: boolean }[]
     sourceEmail?: { id: string; subject: string; fromName?: string | null; date?: string | null } | null
   }
+  highlight?: boolean
 }
 
-export function TaskCard({ task }: TaskCardProps) {
+export function TaskCard({ task, highlight = false }: TaskCardProps) {
   const router = useRouter()
   const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null)
   const [triageLoading, setTriageLoading] = useState(false)
@@ -101,7 +102,8 @@ export function TaskCard({ task }: TaskCardProps) {
     <Link href={`/tasks/${task.id}`}>
       <Card className={cn(
         'p-4 hover:shadow-md transition-shadow cursor-pointer',
-        isDone && 'opacity-60'
+        isDone && 'opacity-60',
+        highlight && 'ring-2 ring-amber-400 ring-offset-2 animate-pulse'
       )}>
         <div className="flex items-start gap-3">
           {/* Status dot */}

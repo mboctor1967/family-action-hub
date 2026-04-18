@@ -41,7 +41,7 @@ import type { ScanResult, DriveFile } from '@/types/financials'
 interface FilePreview {
   file_id: string
   file_name: string
-  file_type?: 'pdf' | 'csv' | 'qfx'
+  file_type?: 'pdf' | 'csv' | 'qfx' | 'qif'
   size: number
   page_count: number
   status: 'readable' | 'needs_ocr' | 'error'
@@ -96,7 +96,7 @@ export function ImportView() {
   const [currentCost, setCurrentCost] = useState(0)
 
   const [error, setError] = useState<string | null>(null)
-  const [scanFileTypes, setScanFileTypes] = useState<Set<string>>(new Set(['pdf', 'csv', 'qfx']))
+  const [scanFileTypes, setScanFileTypes] = useState<Set<string>>(new Set(['pdf', 'csv', 'qfx', 'qif']))
 
   // Step 5: Post-import mapping
   const [showMapping, setShowMapping] = useState(false)
@@ -124,7 +124,7 @@ export function ImportView() {
 
   const selectedCount = selected.size
   const selectedReadable = previews.filter((p) => selected.has(p.file_id) && p.status === 'readable').length
-  const selectedFree = previews.filter((p) => selected.has(p.file_id) && ((p.file_type || 'pdf') === 'csv' || (p.file_type || 'pdf') === 'qfx')).length
+  const selectedFree = previews.filter((p) => selected.has(p.file_id) && ['csv', 'qfx', 'qif'].includes(p.file_type || 'pdf')).length
   const selectedPDFs = selectedReadable - selectedFree  // only PDFs cost money
 
   // Step 1: Scan
@@ -471,6 +471,19 @@ export function ImportView() {
               />
               <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">QFX/OFX</Badge>
             </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <Checkbox
+                checked={scanFileTypes.has('qif')}
+                onCheckedChange={(checked) => {
+                  setScanFileTypes((prev) => {
+                    const next = new Set(prev)
+                    checked ? next.add('qif') : next.delete('qif')
+                    return next
+                  })
+                }}
+              />
+              <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700">QIF</Badge>
+            </label>
           </div>
           <Button onClick={handleScan} disabled={scanning || scanFileTypes.size === 0} size="lg" className="gap-2">
             {scanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderSearch className="h-5 w-5" />}
@@ -551,6 +564,7 @@ export function ImportView() {
                 <SelectItem value="pdf">PDF</SelectItem>
                 <SelectItem value="csv">CSV</SelectItem>
                 <SelectItem value="qfx">QFX/OFX</SelectItem>
+                <SelectItem value="qif">QIF</SelectItem>
               </SelectContent>
             </Select>
 
@@ -623,6 +637,7 @@ export function ImportView() {
                       <Badge variant="secondary" className={`text-[10px] ${
                         (p.file_type || 'pdf') === 'csv' ? 'bg-blue-100 text-blue-700' :
                         (p.file_type || 'pdf') === 'qfx' ? 'bg-green-100 text-green-700' :
+                        (p.file_type || 'pdf') === 'qif' ? 'bg-amber-100 text-amber-700' :
                         'bg-purple-100 text-purple-700'
                       }`}>
                         {(p.file_type || 'pdf').toUpperCase()}

@@ -7,6 +7,17 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-04-18** — `feat` — **v0.2.1 — Triage simplification.** Gmail scan triage flow collapsed from per-row Confirm/Reject + inline edit form to a single checkbox per row + one-click commit. Ticked rows become tasks with AI-suggested metadata; unticked rows are marked rejected and the classifier learns from the decision. Zero-tick commit opens a confirmation dialog. On success, redirects to `/tasks?new=<ids>` which auto-scrolls to the first new task and applies a 2-second amber ring. Added `POST /api/scan/triage/batch` (sequential — neon-http driver does not support transactions; AC6 atomic rollback is best-effort). Extracted `confirmEmailAsTask` + `rejectEmail` helpers into `src/lib/scan/triage-actions.ts`; single-row route delegates to them. vitest added for unit tests (6 passing). Refs: `docs/superpowers/specs/2026-04-18-triage-simplification-design.md`, `docs/superpowers/plans/2026-04-18-triage-simplification.md` (both local-only per gitignore).
+
+- **2026-04-18** — `chore` — **v0.2.0 — Recovery merge.** Ships work that had been stranded on `feat/financials-fingerprint-dedupe` for weeks and never merged, plus the per-domain backlog structure.
+  - Financials: **transaction fingerprinting** (content-hash dedup per account), **QIF import** alongside existing CSV/QFX, **bank codes** lookup. (`4154db6`)
+  - Financials: **spending trend chart** with sort. (`f4d939d`)
+  - Financials: **coverage tab rebuilt** — FY grouping, per-account rows, statement-detail expand, account gap surface. (`ad784c9`)
+  - Financials: **account filter + categorize/import polish**. (`f46d687`)
+  - Tasks: narrow `task.gmailLink` through closure for Next 16 strict typing. (`fb42cae`)
+  - Scripts: new `ai-categorize-unclassified.ts`, `dedupe-transactions.ts`, `migrate-txn-fingerprint.ts` helpers.
+  - Docs: per-domain backlog structure under `docs/domains/` — one file per domain (Financials, Invoices, Tasks, Scan, Notion, Settings, WhatsApp, Home/Shell). Paired with the new `feedback_single_domain_branches.md` rule in memory.
+
 - **2026-04-06** — `feat` — **v0.1.2** Phase F1: Tax Prep / Accountant Pack. New `/financials/tax` tabbed page (Overview / Invoices / Export). One-click "Generate Accountant Pack" produces a ZIP with one subfolder per entity containing PDF report + CSVs (transactions, expenses-by-ATO-code, income, assumptions, outstanding items) + bundled invoices from a per-entity Drive folder. Personal entities use Individual Tax Return codes (D1–D15, I-1–I-24); Pty Ltd entities use Company Tax Return Item 6 codes. SSE-streamed generation with real-time progress. Export bundle uploaded to Vercel Blob (1-hour signed URL). Rule-based AI ATO code proposer runs on every import. Optional Claude AI enhancement for ambiguous cases, user-toggleable in Settings with live cost estimate (per-import / monthly / backfill). Phase F split: F1 = tax prep + Drive folder scan (this release); F2 = full Invoice Scanner integration (deferred to v0.2.0+). Refs: `docs/features/2026-04-06-phase-f-tax-prep.md`.
 
 - **2026-04-06** — `chore` — Workflow simplified: 14 command files collapsed into 2 (`feature.md` + `debug.md`), 9-phase SDLC merged into a single feature-brief pattern in `docs/features/`. CLAUDE.md rewritten with streamlined conventions. Test plan and deployment doc now inline in the feature brief and release gate respectively. Backed up to `docs/archive/workflow-backup-2026-04-06/`.

@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const accountId = searchParams.get('account_id')
   const category = searchParams.get('category')
+  const useAi = searchParams.get('use_ai') === '1'
   const from = searchParams.get('from')
   const to = searchParams.get('to')
   const needsReview = searchParams.get('needs_review')
@@ -23,7 +24,21 @@ export async function GET(request: Request) {
 
   const conditions = []
   if (accountId) conditions.push(eq(financialTransactions.accountId, accountId))
-  if (category) conditions.push(eq(financialTransactions.category, category))
+  if (category) {
+    // When use_ai is on, match the same grouping the spending page uses: confirmed category
+    // (excluding 'OTHER') OR AI-suggested category.
+    if (useAi) {
+      conditions.push(sql`(
+        (${financialTransactions.category} is not null and ${financialTransactions.category} <> 'OTHER' and ${financialTransactions.category} = ${category})
+        or (
+          (${financialTransactions.category} is null or ${financialTransactions.category} = 'OTHER')
+          and ${financialTransactions.aiSuggestedCategory} = ${category}
+        )
+      )`)
+    } else {
+      conditions.push(eq(financialTransactions.category, category))
+    }
+  }
   if (merchant) conditions.push(eq(financialTransactions.merchantName, merchant))
   if (from) conditions.push(gte(financialTransactions.transactionDate, from))
   if (to) conditions.push(lte(financialTransactions.transactionDate, to))

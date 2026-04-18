@@ -63,7 +63,13 @@ export async function POST(request: Request) {
 
             try {
               const { buffer } = await downloadPDFContent(token, file.id)
-              const fileType = file.fileType || (file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'pdf')
+              const lowerName = file.name.toLowerCase()
+              const fileType = file.fileType || (
+                lowerName.endsWith('.csv') ? 'csv' :
+                lowerName.endsWith('.qfx') || lowerName.endsWith('.ofx') ? 'qfx' :
+                lowerName.endsWith('.qif') ? 'qif' :
+                'pdf'
+              )
 
               if (fileType === 'csv') {
                 // CSV: parse directly to get metadata
@@ -108,6 +114,29 @@ export async function POST(request: Request) {
                   transaction_count: qfxResult.data?.transactions?.length || 0,
                   format: qfxResult.format || null,
                   error: qfxResult.success ? undefined : qfxResult.error,
+                })
+              } else if (fileType === 'qif') {
+                // QIF: parse directly
+                const { parseQIF } = await import('@/lib/financials/qif-parse')
+                const qifContent = buffer.toString('utf-8')
+                const qifResult = parseQIF(qifContent, file.name)
+
+                send({
+                  index,
+                  file_id: file.id,
+                  file_name: file.name,
+                  file_type: 'qif',
+                  size: file.size,
+                  page_count: 0,
+                  status: qifResult.success ? 'readable' : 'error',
+                  bank: qifResult.data?.bank_name || filenameMeta.bank,
+                  account_hint: qifResult.data?.account_number_last4 || filenameMeta.accountHint,
+                  bsb: qifResult.data?.bsb,
+                  period: qifResult.data ? `${qifResult.data.statement_start} to ${qifResult.data.statement_end}` : filenameMeta.period,
+                  text_length: qifContent.length,
+                  transaction_count: qifResult.data?.transactions?.length || 0,
+                  format: qifResult.format || null,
+                  error: qifResult.success ? undefined : qifResult.error,
                 })
               } else {
                 // PDF: extract text

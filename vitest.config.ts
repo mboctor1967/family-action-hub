@@ -1,13 +1,16 @@
 import { defineConfig } from 'vitest/config'
-import path from 'node:path'
+import path from 'path'
 
 export default defineConfig({
   test: {
-    include: ['src/**/__tests__/**/*.test.ts'],
     environment: 'node',
-    passWithNoTests: true,
+    globals: false,
+    include: ['src/**/*.test.ts'],
+    exclude: ['node_modules/**', '.next/**'],
   },
   resolve: {
-    alias: { '@': path.resolve(__dirname, 'src') },
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
 })

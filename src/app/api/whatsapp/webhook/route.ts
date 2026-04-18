@@ -33,10 +33,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  const message = (payload as Record<string, unknown> | null)
-    ? ((payload as { entry?: { changes?: { value?: { messages?: unknown[] } }[] }[] })
-        ?.entry?.[0]?.changes?.[0]?.value?.messages?.[0])
-    : undefined
+  interface WaMessage {
+    id: string
+    from: string
+    type: string
+    text?: { body?: string }
+  }
+  const message = (payload as { entry?: { changes?: { value?: { messages?: WaMessage[] } }[] }[] } | null)
+    ?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
   if (!message) return NextResponse.json({ ok: true })
 
   const existing = await db
