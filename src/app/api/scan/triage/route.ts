@@ -56,16 +56,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
+  // Neon HTTP driver does not support transactions; calls run sequentially.
   try {
     if (action === 'confirm') {
-      const taskId = await db.transaction(async (tx) => {
-        return confirmEmailAsTask(tx as any, emailId, session.user!.id!)
-      })
+      const taskId = await confirmEmailAsTask(db as any, emailId, session.user!.id!)
       return NextResponse.json({ success: true, action: 'confirmed', taskId })
     } else {
-      await db.transaction(async (tx) => {
-        await rejectEmail(tx as any, emailId)
-      })
+      await rejectEmail(db as any, emailId)
       return NextResponse.json({ success: true, action: 'rejected' })
     }
   } catch (err) {

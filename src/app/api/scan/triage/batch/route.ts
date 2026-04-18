@@ -38,17 +38,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'At least one of confirmIds or rejectIds must be non-empty' }, { status: 400 })
   }
 
+  // Neon HTTP driver does not support transactions. Operations run sequentially;
+  // if one fails partway, earlier writes remain committed. See spec note on AC6.
   try {
-    const taskIds = await db.transaction(async (tx) => {
-      const created: string[] = []
-      for (const id of confirmIds) {
-        created.push(await confirmEmailAsTask(tx as any, id, session.user!.id!))
-      }
-      for (const id of rejectIds) {
-        await rejectEmail(tx as any, id)
-      }
-      return created
-    })
+    const taskIds: string[] = []
+    for (const id of confirmIds) {
+      taskIds.push(await confirmEmailAsTask(db as any, id, session.user!.id!))
+    }
+    for (const id of rejectIds) {
+      await rejectEmail(db as any, id)
+    }
     return NextResponse.json({ taskIds, rejected: rejectIds.length })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown error'

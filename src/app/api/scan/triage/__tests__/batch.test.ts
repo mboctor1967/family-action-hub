@@ -5,9 +5,7 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 vi.mock('@/lib/db', () => ({
-  db: {
-    transaction: vi.fn(async (cb) => cb({})),
-  },
+  db: {},
 }))
 
 const confirmSpy = vi.fn().mockResolvedValue('task-new')
@@ -18,7 +16,7 @@ vi.mock('@/lib/scan/triage-actions', () => ({
 }))
 
 describe('POST /api/scan/triage/batch', () => {
-  it('confirms and rejects in one transaction and returns task ids', async () => {
+  it('confirms and rejects sequentially and returns task ids', async () => {
     const { POST } = await import('../batch/route')
     const req = new Request('http://localhost/api/scan/triage/batch', {
       method: 'POST',
