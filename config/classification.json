@@ -215,6 +215,94 @@
       "original_classification": "actionable",
       "corrected_to": "noise/informational",
       "date": "2026-04-17"
+    },
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "Your Stripe verification code",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "You can now accept payments with Stripe",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "[Action required] Review documents for a business representative",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "stripe.com",
+      "subject_pattern": "Continue setting up your Stripe account",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "updates.notion.so",
+      "subject_pattern": "Your temporary Notion login code",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "carnivalcruiselineemail.com",
+      "subject_pattern": "MAGED, KNOW BEFORE YOU GO - IMPORTANT INFORMATION FOR YOUR UPCOMING CRUISE",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "gmail.com",
+      "subject_pattern": "Our education - setup session",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "obsidian.md",
+      "subject_pattern": "Finish signing up for Obsidian Sync",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "obsidian.md",
+      "subject_pattern": "Finish signing up for Obsidian Sync",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "obsidian.md",
+      "subject_pattern": "Finish signing up for Obsidian Sync",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
+    },
+    {
+      "sender": "obsidian.md",
+      "subject_pattern": "Finish signing up for Obsidian Sync",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-18"
     }
   ]
 }
