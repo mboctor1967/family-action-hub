@@ -7,6 +7,8 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-04-18** — `feat` — **v0.2.1 — Triage simplification.** Gmail scan triage flow collapsed from per-row Confirm/Reject + inline edit form to a single checkbox per row + one-click commit. Ticked rows become tasks with AI-suggested metadata; unticked rows are marked rejected and the classifier learns from the decision. Zero-tick commit opens a confirmation dialog. On success, redirects to `/tasks?new=<ids>` which auto-scrolls to the first new task and applies a 2-second amber ring. Added `POST /api/scan/triage/batch` (sequential — neon-http driver does not support transactions; AC6 atomic rollback is best-effort). Extracted `confirmEmailAsTask` + `rejectEmail` helpers into `src/lib/scan/triage-actions.ts`; single-row route delegates to them. vitest added for unit tests (6 passing). Refs: `docs/superpowers/specs/2026-04-18-triage-simplification-design.md`, `docs/superpowers/plans/2026-04-18-triage-simplification.md` (both local-only per gitignore).
+
 - **2026-04-18** — `chore` — **v0.2.0 — Recovery merge.** Ships work that had been stranded on `feat/financials-fingerprint-dedupe` for weeks and never merged, plus the per-domain backlog structure.
   - Financials: **transaction fingerprinting** (content-hash dedup per account), **QIF import** alongside existing CSV/QFX, **bank codes** lookup. (`4154db6`)
   - Financials: **spending trend chart** with sort. (`f4d939d`)
