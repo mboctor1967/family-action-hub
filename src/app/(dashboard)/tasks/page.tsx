@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { tasks, profiles, topics } from '@/lib/db/schema'
 import { eq, desc, and, isNull, not } from 'drizzle-orm'
-import { TaskCard } from '@/components/tasks/task-card'
+import { TasksList } from '@/components/tasks/tasks-list'
 import { TaskFilters } from '@/components/tasks/task-filters'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -68,11 +68,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
       <TaskFilters topics={topLevelTopics} members={members as any} />
 
       {allTasks.length > 0 ? (
-        <div className="space-y-2">
-          {allTasks.map((task) => (
-            <TaskCard key={task.id} task={task as any} />
-          ))}
-        </div>
+        <TasksList tasks={allTasks as any} />
       ) : (
         <EmptyState
           icon={CheckSquare}
