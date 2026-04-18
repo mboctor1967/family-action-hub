@@ -37,11 +37,14 @@ export function TasksList({ tasks }: TasksListProps) {
 
     const t = setTimeout(() => {
       setActiveHighlights(new Set())
-      // Clean URL so refresh doesn't re-highlight
-      router.replace('/tasks', { scroll: false })
+      // Clean URL so refresh doesn't re-highlight; preserve other query params.
+      const params = new URLSearchParams(searchParams)
+      params.delete('new')
+      const qs = params.toString()
+      router.replace(qs ? `/tasks?${qs}` : '/tasks', { scroll: false })
     }, RING_DURATION_MS)
     return () => clearTimeout(t)
-  }, [newIds, tasks, router])
+  }, [newIds, tasks, router, searchParams])
 
   return (
     <div className="space-y-2">
