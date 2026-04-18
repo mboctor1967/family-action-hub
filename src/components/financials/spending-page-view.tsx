@@ -24,7 +24,7 @@ export function SpendingPageView() {
   return (
     <div className="space-y-6">
       <PageHeader title="Spending Analysis" subtitle="Category breakdown, biggest transactions, and drill-down" />
-      <AccountFilter onFilterChange={handleFilterChange} />
+      <AccountFilter onFilterChange={handleFilterChange} storageKey="spending" />
       <SpendingTab filter={appliedFilter} filterKey={filterKey} onCategorize={goToCategorize} />
     </div>
   )

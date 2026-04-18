@@ -112,9 +112,9 @@ function tryCommBankNoHeader(lines: string[], fileName: string): CSVParseResult 
 
   return {
     success: true,
-    format: 'CommBank CSV (no header)',
+    format: 'CBA CSV (no header)',
     data: {
-      bank_name: isCommBank ? 'CommBank' : detectBankFromContent(lines, fileName),
+      bank_name: isCommBank ? 'CBA' : detectBankFromContent(lines, fileName),
       account_name: '',
       account_number_last4: '',
       bsb: null,
@@ -209,9 +209,9 @@ function tryCommBank(lines: string[], fileName: string): CSVParseResult {
 
   return {
     success: true,
-    format: 'CommBank CSV',
+    format: 'CBA CSV',
     data: {
-      bank_name: isCommBank ? 'CommBank' : detectBankFromContent(lines, fileName),
+      bank_name: isCommBank ? 'CBA' : detectBankFromContent(lines, fileName),
       account_name: extractAccountInfo(lines, headerIdx) || '',
       account_number_last4: extractAccountNumber(lines, headerIdx) || '',
       bsb: null,
@@ -258,7 +258,7 @@ function tryWestpac(lines: string[], fileName: string): CSVParseResult {
   )
 
   if (headerIdx === -1) return { success: false }
-  return tryGenericCSVWithBank(lines, fileName, headerIdx, 'Westpac')
+  return tryGenericCSVWithBank(lines, fileName, headerIdx, 'WBC')
 }
 
 /**
@@ -444,9 +444,9 @@ function inferMerchant(desc: string): string | null {
 
 function detectBankFromContent(lines: string[], fileName: string): string {
   const text = lines.slice(0, 5).join(' ') + ' ' + fileName
-  if (/commbank|commonwealth|cba/i.test(text)) return 'CommBank'
+  if (/commbank|commonwealth|cba/i.test(text)) return 'CBA'
   if (/\banz\b/i.test(text)) return 'ANZ'
-  if (/westpac|wbc/i.test(text)) return 'Westpac'
+  if (/westpac|wbc/i.test(text)) return 'WBC'
   if (/\bnab\b|national australia/i.test(text)) return 'NAB'
   if (/st\.?\s*george/i.test(text)) return 'St.George'
   if (/macquarie/i.test(text)) return 'Macquarie'

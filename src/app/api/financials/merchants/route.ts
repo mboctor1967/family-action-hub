@@ -13,6 +13,8 @@ export async function GET(request: Request) {
     merchantName: financialTransactions.merchantName,
     category: financialTransactions.category,
     subcategory: financialTransactions.subcategory,
+    // Mode of ai_suggested_category across the merchant's transactions (PostgreSQL's mode())
+    aiSuggestedCategory: sql<string | null>`mode() within group (order by ${financialTransactions.aiSuggestedCategory})`,
     txnCount: sql<number>`count(*)`,
     totalAmount: sql<number>`sum(${financialTransactions.amount}::numeric)`,
     totalDebit: sql<number>`sum(abs(${financialTransactions.amount}::numeric)) filter (where ${financialTransactions.amount}::numeric < 0)`,
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
       atoCodePersonal?: string | null
       atoCodeCompany?: string | null
       acceptAiSuggestions?: boolean
+      acceptAiCategory?: boolean
     }>
   }
 
@@ -57,6 +60,18 @@ export async function POST(request: Request) {
 
   let updated = 0
   for (const u of updates) {
+    // "Accept AI category" short-circuits: promote ai_suggested_category → category for this merchant's txns.
+    if (u.acceptAiCategory) {
+      const result = await db.update(financialTransactions)
+        .set({
+          category: sql`coalesce(${financialTransactions.aiSuggestedCategory}, ${financialTransactions.category})`,
+        })
+        .where(eq(financialTransactions.merchantName, u.merchantName))
+        .returning({ id: financialTransactions.id })
+      updated += result.length
+      continue
+    }
+
     const fields: Record<string, any> = { category: u.category }
     if (u.subcategory !== undefined) fields.subcategory = u.subcategory
     if (u.isTaxDeductible !== undefined) fields.isTaxDeductible = u.isTaxDeductible

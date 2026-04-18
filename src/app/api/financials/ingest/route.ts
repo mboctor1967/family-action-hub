@@ -15,6 +15,7 @@ import { extractTextFromPDF } from '@/lib/financials/pdf-extract'
 import { parseStatementWithAI } from '@/lib/financials/ai-parse'
 import { parseCSV } from '@/lib/financials/csv-parse'
 import { parseQFX } from '@/lib/financials/qfx-parse'
+import { parseQIF } from '@/lib/financials/qif-parse'
 import { getModelConfig } from '@/lib/financials/constants'
 import { proposeAtoCodes, type EntityType } from '@/lib/financials/ato-proposer'
 import pLimit from 'p-limit'
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
               // 1. Download file from Drive
               const { buffer } = await downloadPDFContent(token, fileId)
               const lowerName = fileName.toLowerCase()
-              const fileType = file_types?.[fileId] || (lowerName.endsWith('.csv') ? 'csv' : lowerName.endsWith('.qfx') || lowerName.endsWith('.ofx') ? 'qfx' : 'pdf')
+              const fileType = file_types?.[fileId] || (lowerName.endsWith('.csv') ? 'csv' : lowerName.endsWith('.qfx') || lowerName.endsWith('.ofx') ? 'qfx' : lowerName.endsWith('.qif') ? 'qif' : 'pdf')
               let parsed: any
               let sourceType: string = 'pdf_text'
 
@@ -153,6 +154,33 @@ export async function POST(request: Request) {
 
                 parsed = csvResult.data
                 sourceType = 'csv'
+              } else if (fileType === 'qif') {
+                // QIF: parse directly — no AI cost
+                const qifContent = buffer.toString('utf-8')
+                const qifResult = parseQIF(qifContent, fileName)
+
+                if (!qifResult.success || !qifResult.data) {
+                  await db.insert(parseErrors).values({
+                    fileName,
+                    gdriveFileId: fileId,
+                    errorMessage: qifResult.error || 'QIF parse failed',
+                    errorType: 'parse_failure',
+                  })
+                  errorCount++
+                  send({
+                    type: 'progress',
+                    current: index + 1,
+                    total: file_ids.length,
+                    file_name: fileName,
+                    status: 'error',
+                    error_message: qifResult.error,
+                    estimated_cost: totalCost,
+                  })
+                  return
+                }
+
+                parsed = qifResult.data
+                sourceType = 'qif'
               } else {
                 // PDF: extract text, then AI parse
                 const { text, isImagePDF, extractionMethod } = await extractTextFromPDF(buffer, { enableOCR: true })
@@ -298,7 +326,20 @@ export async function POST(request: Request) {
                 const subcatsForIngest = await db.select().from(financialSubcategories)
                 const subcatByName = new Map(subcatsForIngest.map(s => [s.name, s]))
 
+                // Counter for nth-identical-tuple within this file (needed when no FITID is available)
+                const nthCounter = new Map<string, number>()
+                const { createHash } = await import('node:crypto')
+
                 const txnValues = parsed.transactions.map((txn: any, rowIdx: number) => {
+                  // Compute content-addressable fingerprint for cross-file dedup.
+                  // Preference: bank-assigned FITID (OFX/QFX); fallback: sha256 of content + nth-same-tuple.
+                  const contentKey = `${txn.transaction_date}|${txn.amount}|${(txn.description_raw || '').trim()}`
+                  const nth = (nthCounter.get(contentKey) ?? 0) + 1
+                  nthCounter.set(contentKey, nth)
+                  const fingerprint: string = txn.fitid
+                    ? `fitid:${String(txn.fitid).trim()}`
+                    : `hash:${createHash('sha256').update(`${contentKey}|${nth}`).digest('hex').slice(0, 32)}`
+
                   // Phase F1 — propose ATO codes at ingest time
                   const subcat = txn.subcategory ? subcatByName.get(txn.subcategory) : null
                   const atoProposal = proposeAtoCodes(
@@ -331,6 +372,7 @@ export async function POST(request: Request) {
                     taxCategory: txn.tax_category,
                     needsReview: false,
                     rowIndex: (txn as any).row_index ?? rowIdx,
+                    fingerprint,
                     // Phase F1 — AI-suggested ATO codes populated at import time
                     aiSuggestedAtoCodePersonal: atoProposal.aiPersonal,
                     aiSuggestedAtoCodeCompany: atoProposal.aiCompany,

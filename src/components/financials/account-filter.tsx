@@ -6,15 +6,51 @@ import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronUp, Tag, Check, Filter } from 'lucide-react'
 
 interface Entity { id: string; name: string; type: string; color: string }
-interface Account { id: string; bankName: string; accountName: string | null; accountNumber: string | null; accountNumberLast4: string | null; entityId: string | null }
+interface Account { id: string; bankName: string; accountName: string | null; accountNumber: string | null; accountNumberLast4: string | null; entityId: string | null; accountType: string | null }
 interface Counts { total: number; income: number; expenses: number; total_income: number; total_spend: number; uncategorized: number; unique_merchants: number }
 interface PeriodOption { value: string; label: string; from: string; to: string }
 
-export interface FilterState { entityIds: string[]; accountIds: string[]; from?: string; to?: string }
+export interface FilterState { entityIds: string[]; accountIds: string[]; accountTypes?: string[]; from?: string; to?: string }
+
+const ACCOUNT_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'personal_cheque', label: 'Transaction' },
+  { value: 'personal_savings', label: 'Savings' },
+  { value: 'business_cheque', label: 'Business' },
+  { value: 'credit_card', label: 'Credit Card' },
+]
 
 interface Props {
   onFilterChange: (filters: FilterState) => void
   showDateFilter?: boolean
+  /** When set, selections persist in localStorage under this key. */
+  storageKey?: string
+}
+
+interface PersistedState {
+  ents: string[]
+  accts: string[]
+  types: string[]
+  periods: string[]
+}
+
+function loadPersisted(key: string | undefined): PersistedState | null {
+  if (!key || typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(`filter:${key}`)
+    if (!raw) return null
+    const v = JSON.parse(raw)
+    return {
+      ents: Array.isArray(v.ents) ? v.ents : [],
+      accts: Array.isArray(v.accts) ? v.accts : [],
+      types: Array.isArray(v.types) ? v.types : [],
+      periods: Array.isArray(v.periods) ? v.periods : [],
+    }
+  } catch { return null }
+}
+
+function savePersisted(key: string | undefined, s: PersistedState) {
+  if (!key || typeof window === 'undefined') return
+  try { window.localStorage.setItem(`filter:${key}`, JSON.stringify(s)) } catch {}
 }
 
 const formatAUD = (v: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(v)
@@ -46,33 +82,61 @@ function Chip({ label, selected, color, onClick }: { label: string; selected: bo
   )
 }
 
-export function AccountFilter({ onFilterChange, showDateFilter = true }: Props) {
+export function AccountFilter({ onFilterChange, showDateFilter = true, storageKey }: Props) {
   const [entities, setEntities] = useState<Entity[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [counts, setCounts] = useState<Counts | null>(null)
   const [collapsed, setCollapsed] = useState(false)
   const periodOptions = buildPeriodOptions()
 
+  // Hydrate once from localStorage (SSR-safe: returns null on server, data on client first render).
+  const persisted = typeof window !== 'undefined' ? loadPersisted(storageKey) : null
+
   // Draft selections (not applied yet)
-  const [draftEnts, setDraftEnts] = useState<string[]>([])
-  const [draftAccts, setDraftAccts] = useState<string[]>([])
-  const [draftPeriods, setDraftPeriods] = useState<string[]>([])
+  const [draftEnts, setDraftEnts] = useState<string[]>(persisted?.ents ?? [])
+  const [draftAccts, setDraftAccts] = useState<string[]>(persisted?.accts ?? [])
+  const [draftTypes, setDraftTypes] = useState<string[]>(persisted?.types ?? [])
+  const [draftPeriods, setDraftPeriods] = useState<string[]>(persisted?.periods ?? [])
 
   // Applied selections (what's actually filtering)
-  const [appliedEnts, setAppliedEnts] = useState<string[]>([])
-  const [appliedAccts, setAppliedAccts] = useState<string[]>([])
-  const [appliedPeriods, setAppliedPeriods] = useState<string[]>([])
+  const [appliedEnts, setAppliedEnts] = useState<string[]>(persisted?.ents ?? [])
+  const [appliedAccts, setAppliedAccts] = useState<string[]>(persisted?.accts ?? [])
+  const [appliedTypes, setAppliedTypes] = useState<string[]>(persisted?.types ?? [])
+  const [appliedPeriods, setAppliedPeriods] = useState<string[]>(persisted?.periods ?? [])
 
-  const isDirty = JSON.stringify({ e: draftEnts, a: draftAccts, p: draftPeriods }) !==
-                  JSON.stringify({ e: appliedEnts, a: appliedAccts, p: appliedPeriods })
+  const isDirty = JSON.stringify({ e: draftEnts, a: draftAccts, t: draftTypes, p: draftPeriods }) !==
+                  JSON.stringify({ e: appliedEnts, a: appliedAccts, t: appliedTypes, p: appliedPeriods })
 
   useEffect(() => {
     Promise.all([
       fetch('/api/financials/entities').then(r => r.ok ? r.json() : []),
       fetch('/api/financials/accounts').then(r => r.ok ? r.json() : []),
     ]).then(([e, a]) => { setEntities(e); setAccounts(a) }).catch(() => {})
-    fetch('/api/financials/counts').then(r => r.ok ? r.json() : null).then(setCounts).catch(() => {})
+
+    // If we hydrated applied state from localStorage, push it up to the parent + collapse filters.
+    if (persisted && (persisted.ents.length || persisted.accts.length || persisted.types.length || persisted.periods.length)) {
+      const dates = computeDateRangeRaw(persisted.periods)
+      const effectiveAcctIds = persisted.accts // accounts list may not be loaded yet; fine — API handles raw IDs.
+      onFilterChange({ entityIds: persisted.ents, accountIds: effectiveAcctIds, accountTypes: persisted.types, ...dates })
+      setCollapsed(true)
+      const params = new URLSearchParams()
+      if (persisted.ents.length) params.set('entity_ids', persisted.ents.join(','))
+      if (effectiveAcctIds.length) params.set('account_ids', effectiveAcctIds.join(','))
+      if (dates.from) params.set('from', dates.from)
+      if (dates.to) params.set('to', dates.to)
+      fetch(`/api/financials/counts?${params}`).then(r => r.ok ? r.json() : null).then(setCounts).catch(() => {})
+    } else {
+      fetch('/api/financials/counts').then(r => r.ok ? r.json() : null).then(setCounts).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Raw date-range computation (no dependency on periodOptions state reordering).
+  function computeDateRangeRaw(pIds: string[]): { from?: string; to?: string } {
+    if (!pIds.length) return {}
+    const sel = periodOptions.filter(o => pIds.includes(o.value))
+    return { from: sel.map(o => o.from).sort()[0], to: sel.map(o => o.to).sort().reverse()[0] }
+  }
 
   function computeDateRange(pIds: string[]): { from?: string; to?: string } {
     if (!pIds.length) return {}
@@ -80,19 +144,32 @@ export function AccountFilter({ onFilterChange, showDateFilter = true }: Props) 
     return { from: sel.map(o => o.from).sort()[0], to: sel.map(o => o.to).sort().reverse()[0] }
   }
 
+  // Translate selected types into account IDs (intersect with explicit accounts if any),
+  // so downstream APIs that only know entity_ids / account_ids still get the right filter.
+  function resolveAccountIds(explicit: string[], types: string[]): string[] {
+    if (types.length === 0) return explicit
+    const typeMatchIds = accounts.filter(a => a.accountType && types.includes(a.accountType)).map(a => a.id)
+    if (explicit.length === 0) return typeMatchIds
+    const typeSet = new Set(typeMatchIds)
+    return explicit.filter(id => typeSet.has(id))
+  }
+
   function applyFilters() {
     setAppliedEnts([...draftEnts])
     setAppliedAccts([...draftAccts])
+    setAppliedTypes([...draftTypes])
     setAppliedPeriods([...draftPeriods])
+    savePersisted(storageKey, { ents: draftEnts, accts: draftAccts, types: draftTypes, periods: draftPeriods })
 
     const dates = computeDateRange(draftPeriods)
-    const filter: FilterState = { entityIds: draftEnts, accountIds: draftAccts, ...dates }
+    const effectiveAccountIds = resolveAccountIds(draftAccts, draftTypes)
+    const filter: FilterState = { entityIds: draftEnts, accountIds: effectiveAccountIds, accountTypes: draftTypes, ...dates }
     onFilterChange(filter)
 
     // Fetch counts
     const params = new URLSearchParams()
     if (draftEnts.length) params.set('entity_ids', draftEnts.join(','))
-    if (draftAccts.length) params.set('account_ids', draftAccts.join(','))
+    if (effectiveAccountIds.length) params.set('account_ids', effectiveAccountIds.join(','))
     if (dates.from) params.set('from', dates.from)
     if (dates.to) params.set('to', dates.to)
     fetch(`/api/financials/counts?${params}`).then(r => r.ok ? r.json() : null).then(setCounts).catch(() => {})
@@ -101,10 +178,15 @@ export function AccountFilter({ onFilterChange, showDateFilter = true }: Props) 
   }
 
   function clearAll() {
-    setDraftEnts([]); setDraftAccts([]); setDraftPeriods([])
-    setAppliedEnts([]); setAppliedAccts([]); setAppliedPeriods([])
-    onFilterChange({ entityIds: [], accountIds: [] })
+    setDraftEnts([]); setDraftAccts([]); setDraftTypes([]); setDraftPeriods([])
+    setAppliedEnts([]); setAppliedAccts([]); setAppliedTypes([]); setAppliedPeriods([])
+    savePersisted(storageKey, { ents: [], accts: [], types: [], periods: [] })
+    onFilterChange({ entityIds: [], accountIds: [], accountTypes: [] })
     fetch('/api/financials/counts').then(r => r.ok ? r.json() : null).then(setCounts).catch(() => {})
+  }
+
+  function toggleType(value: string) {
+    setDraftTypes(prev => prev.includes(value) ? prev.filter(x => x !== value) : [...prev, value])
   }
 
   function toggleEnt(id: string) {
@@ -129,12 +211,18 @@ export function AccountFilter({ onFilterChange, showDateFilter = true }: Props) 
     setDraftPeriods(prev => prev.includes(value) ? prev.filter(x => x !== value) : [...prev, value])
   }
 
-  const visibleAccounts = draftEnts.length > 0 ? accounts.filter(a => draftEnts.includes(a.entityId || '')) : accounts
-  const hasApplied = appliedEnts.length > 0 || appliedAccts.length > 0 || appliedPeriods.length > 0
+  // Account chips are narrowed by both entity and type selections.
+  const visibleAccounts = accounts.filter(a => {
+    if (draftEnts.length > 0 && !draftEnts.includes(a.entityId || '')) return false
+    if (draftTypes.length > 0 && !(a.accountType && draftTypes.includes(a.accountType))) return false
+    return true
+  })
+  const hasApplied = appliedEnts.length > 0 || appliedAccts.length > 0 || appliedTypes.length > 0 || appliedPeriods.length > 0
 
   const appliedSummary = () => {
     const parts: string[] = []
     if (appliedEnts.length) parts.push(entities.filter(e => appliedEnts.includes(e.id)).map(e => e.name).join(', '))
+    if (appliedTypes.length) parts.push(ACCOUNT_TYPE_OPTIONS.filter(o => appliedTypes.includes(o.value)).map(o => o.label).join(', '))
     if (appliedAccts.length) parts.push(`${appliedAccts.length} acct${appliedAccts.length > 1 ? 's' : ''}`)
     if (appliedPeriods.length) parts.push(periodOptions.filter(o => appliedPeriods.includes(o.value)).map(o => o.label).join(', '))
     return parts.join(' · ')
@@ -184,6 +272,14 @@ export function AccountFilter({ onFilterChange, showDateFilter = true }: Props) 
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide w-14 shrink-0">Entity</span>
             {entities.map(e => (
               <Chip key={e.id} label={e.name} selected={draftEnts.includes(e.id)} color={e.color} onClick={() => toggleEnt(e.id)} />
+            ))}
+          </div>
+
+          {/* Account type — inline */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide w-14 shrink-0">Type</span>
+            {ACCOUNT_TYPE_OPTIONS.map(o => (
+              <Chip key={o.value} label={o.label} selected={draftTypes.includes(o.value)} onClick={() => toggleType(o.value)} />
             ))}
           </div>
 

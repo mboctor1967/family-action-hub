@@ -28,6 +28,7 @@ interface Merchant {
   merchantName: string
   category: string | null
   subcategory: string | null
+  aiSuggestedCategory: string | null
   txnCount: number
   totalAmount: number
   totalDebit: number
@@ -73,12 +74,28 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [dbCategories, setDbCategories] = useState<DBCategory[]>([])
-  const [filter, setFilter] = useState<'all' | 'uncategorized' | 'categorized'>('uncategorized')
-  const [direction, setDirection] = useState<'all' | 'in' | 'out'>('all')
-  const [threshold, setThreshold] = useState<'all' | 'big' | 'medium' | 'small'>('all')
+  // Hydrate filter prefs from localStorage (search intentionally not persisted — too transient)
+  const prefs = (() => {
+    if (typeof window === 'undefined') return null
+    try { return JSON.parse(window.localStorage.getItem('categorize-prefs') || 'null') } catch { return null }
+  })()
+  const [filter, setFilter] = useState<'all' | 'uncategorized' | 'categorized'>(prefs?.filter ?? 'uncategorized')
+  const [direction, setDirection] = useState<'all' | 'in' | 'out'>(prefs?.direction ?? 'all')
+  const [threshold, setThreshold] = useState<'all' | 'big' | 'medium' | 'small'>(prefs?.threshold ?? 'all')
   const [search, setSearch] = useState(initialSearch || '')
-  const [sortBy, setSortBy] = useState<'amount' | 'txns'>('amount')
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [sortBy, setSortBy] = useState<'amount' | 'txns'>(prefs?.sortBy ?? 'amount')
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>(prefs?.sortDir ?? 'desc')
+  const savePrefs = (patch: Partial<{ filter: string; direction: string; threshold: string; sortBy: string; sortDir: string }>) => {
+    if (typeof window === 'undefined') return
+    try {
+      const current = JSON.parse(window.localStorage.getItem('categorize-prefs') || '{}')
+      window.localStorage.setItem('categorize-prefs', JSON.stringify({ ...current, ...patch }))
+    } catch {}
+  }
+  useEffect(() => {
+    savePrefs({ filter, direction, threshold, sortBy, sortDir })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, direction, threshold, sortBy, sortDir])
   const [bulkCategory, setBulkCategory] = useState('')
   const [changes, setChanges] = useState<Map<string, string>>(new Map())
   const [stats, setStats] = useState({ uncategorized: 0, categorized: 0, total: 0 })
@@ -87,6 +104,7 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
   const [loadingTxns, setLoadingTxns] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, string>>({})
+  const [rejectedAi, setRejectedAi] = useState<Set<string>>(new Set())
 
   async function loadMerchants() {
     setLoading(true)
@@ -121,9 +139,15 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
   }
 
   function getAiSuggestion(m: Merchant): string | null {
-    // Only show if not already confirmed as a change
     if (changes.has(m.merchantName)) return null
-    return aiSuggestions[m.merchantName] || null
+    if (rejectedAi.has(m.merchantName)) return null
+    const live = aiSuggestions[m.merchantName]
+    if (live) return live
+    const stored = m.aiSuggestedCategory
+    if (!stored) return null
+    const current = m.category || 'OTHER'
+    if (current !== 'OTHER' && current === stored) return null
+    return stored
   }
 
   async function toggleMerchantTxns(merchantName: string) {
@@ -177,14 +201,18 @@ export function CategorizeView({ initialSearch, onSearchClear, embedded }: { ini
   }
 
   function acceptSuggestion(merchantName: string) {
-    const cat = aiSuggestions[merchantName]
+    // Source of truth: live session suggestion → DB-stored ai_suggested_category fallback
+    const live = aiSuggestions[merchantName]
+    const m = merchants.find(x => x.merchantName === merchantName)
+    const cat = live || m?.aiSuggestedCategory
     if (!cat) return
     setChanges(prev => { const next = new Map(prev); next.set(merchantName, cat); return next })
-    setAiSuggestions(prev => { const next = { ...prev }; delete next[merchantName]; return next })
+    if (live) setAiSuggestions(prev => { const next = { ...prev }; delete next[merchantName]; return next })
   }
 
   function rejectSuggestion(merchantName: string) {
     setAiSuggestions(prev => { const next = { ...prev }; delete next[merchantName]; return next })
+    setRejectedAi(prev => { const next = new Set(prev); next.add(merchantName); return next })
   }
 
   function applyBulkCategory() {
