@@ -12,12 +12,6 @@ import { sendDigest } from '../digest-sender'
 import { sendMessage } from '@/lib/whatsapp/client'
 import { persistSnapshot, expireSnapshotsForPhone } from '../digest-snapshot'
 
-type MockFunction = {
-  mock: {
-    calls: Array<Array<unknown>>
-  }
-}
-
 describe('sendDigest', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
@@ -30,7 +24,7 @@ describe('sendDigest', () => {
 
     expect(expireSnapshotsForPhone).toHaveBeenCalledWith('+61412408587')
     expect(sendMessage).toHaveBeenCalledTimes(1)
-    const sendArgs = (sendMessage as MockFunction).mock.calls[0][0] as Record<string, unknown>
+    const sendArgs = (vi.mocked(sendMessage)).mock.calls[0][0] as Record<string, unknown>
     expect(sendArgs.to).toBe('+61412408587')
     expect(sendArgs.body).toContain('Gmail digest')
     expect(persistSnapshot).toHaveBeenCalledWith({
@@ -42,7 +36,7 @@ describe('sendDigest', () => {
 
   it('sends zero-items heartbeat when items is empty', async () => {
     await sendDigest({ recipient: '+61412408587', items: [], dateLabel: '2026-04-20' })
-    const sendArgs = (sendMessage as MockFunction).mock.calls[0][0] as Record<string, unknown>
+    const sendArgs = (vi.mocked(sendMessage)).mock.calls[0][0] as Record<string, unknown>
     expect(sendArgs.body).toContain('Inbox clear')
     expect(persistSnapshot).not.toHaveBeenCalled()
   })
@@ -52,9 +46,9 @@ describe('sendDigest', () => {
       subject: `Item ${i}`, fromName: null, fromAddress: 'x@y', gmailMessageId: `id-${i}`,
     }))
     await sendDigest({ recipient: '+61412408587', items: many, dateLabel: '2026-04-20' })
-    const sendArgs = (sendMessage as MockFunction).mock.calls[0][0] as Record<string, unknown>
+    const sendArgs = (vi.mocked(sendMessage)).mock.calls[0][0] as Record<string, unknown>
     expect(sendArgs.body).toContain('+5 more')
-    const positionsArg = (persistSnapshot as MockFunction).mock.calls[0][0] as Record<string, unknown>
+    const positionsArg = (vi.mocked(persistSnapshot)).mock.calls[0][0] as Record<string, unknown>
     const positions = positionsArg.positions as Array<unknown>
     expect(positions).toHaveLength(20)
     expect(positions[0]).toEqual({ pos: 1, emailId: 'id-0' })
