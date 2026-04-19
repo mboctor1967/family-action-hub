@@ -7,8 +7,9 @@ Gmail inbox scanning + AI classification (actionable / informational / noise) + 
 ## Shipped
 
 - Pages: `/scan` (scan controls + triage list)
-- APIs: `POST /api/scan` (SSE stream), `GET/POST /api/scan/triage`, `POST /api/scan/triage/batch` (new this cycle)
-- Helpers: `src/lib/scan/triage-actions.ts` (`confirmEmailAsTask`, `rejectEmail` — shared between single and batch routes)
+- APIs: `POST /api/scan` (SSE stream), `GET/POST /api/scan/triage`, `POST /api/scan/triage/batch`, `POST /api/cron/digest` (v0.4.0)
+- Helpers: `src/lib/scan/triage-actions.ts` (`confirmEmailAsTask`, `rejectEmail` — shared between single, batch, and WhatsApp-reply routes)
+- **v0.4.0** (2026-04-20) — `runScanForAccount()` extracted from the SSE route (`src/lib/scan/run-scan.ts`) so the cron can invoke fresh scans; `src/lib/scan/priority-score.ts` ranks actionable emails for the digest.
 
 ## In-flight
 
@@ -17,9 +18,8 @@ Gmail inbox scanning + AI classification (actionable / informational / noise) + 
 ## Queued (next)
 
 1. **Ship the triage simplification merge** — needs version bump + CHANGELOG + deploy (see `tasks.md` — this merge is cross-domain, grandfathered).
-2. **Daily WhatsApp digest of actionable emails** (memory: `whatsapp_daily_digest_queued.md`) — **blocked on WhatsApp bot v1 shipping first**. Push side of the scan/triage loop.
-3. **Scan status banner on home** — home has no indicator when a scan is running in the background.
-4. **Scheduled scan cron** — currently manual-trigger only. Vercel cron → auto-run nightly.
+2. **Scan status banner on home** — home has no indicator when a scan is running in the background.
+3. **Scheduled scan cron (user-facing)** — currently only the digest cron runs nightly (20:00 UTC). A separate user-triggered scheduled scan could fire at different intervals.
 
 ## Deferred
 

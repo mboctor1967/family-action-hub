@@ -1,10 +1,53 @@
 {
   "permissions": {
+    "defaultMode": "acceptEdits",
     "allow": [
-      "Bash(npx tsc --noEmit)",
-      "Bash(npm run lint)",
-      "Bash(npm test)",
-      "Bash(where *)"
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm i:*)",
+      "Bash(npm install:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git tag:*)",
+      "Bash(git merge:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git stash:*)",
+      "Bash(git worktree:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pwd)",
+      "Bash(curl:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(vercel ls:*)",
+      "Bash(vercel logs:*)",
+      "Bash(vercel env:*)",
+      "Bash(vercel inspect:*)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel --version)",
+      "Bash(vercel --prod --yes)",
+      "Bash(claude --version)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git reset --hard *)",
+      "Bash(git push --force*)",
+      "Bash(npx drizzle-kit push*)",
+      "Bash(npx drizzle-kit migrate*)",
+      "Bash(npm publish*)",
+      "Bash(pnpm publish*)"
     ]
   }
 }

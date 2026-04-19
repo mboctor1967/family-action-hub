@@ -8,10 +8,10 @@ Unified task list for the household — manual tasks + tasks auto-created from G
 
 - Pages: `/tasks` (filterable list), `/tasks/new`, `/tasks/[id]` (detail with comments + subtasks)
 - APIs: task CRUD, comments, feedback, subtasks
-- Components: `task-card`, `task-filters`, `tasks-list` (new — handles `?new=` highlight)
-- **Part of the in-flight `feat/triage-simplification` branch** (see below):
-  - `?new=<ids>` param support with auto-scroll + 2-second amber ring
-  - Filter query-param preservation during URL cleanup
+- Components: `task-card`, `task-filters`, `tasks-list` (handles `?new=` highlight)
+- `?new=<ids>` param support with auto-scroll + 2-second amber ring; filter query-param preservation during URL cleanup (v0.2.1)
+- **v0.3.3** (2026-04-20) — Scan ↔ Tasks nav quick-links in page headers for faster triage→task navigation.
+- **v0.4.0** (2026-04-20) — Tasks can now be created from WhatsApp by replying to the daily Gmail digest (e.g. `task 1,3`). Reuses the existing `confirmEmailAsTask` helper; no task-schema changes. Reply owner falls back to Maged via `DIGEST_FALLBACK_USER_ID` until Mandy has a user record (see `mandy_hub_access_todo.md`).
 
 ## In-flight
 
