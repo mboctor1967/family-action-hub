@@ -6,6 +6,7 @@ import { verifySignature } from '@/lib/whatsapp/verify'
 import { parseCommand } from '@/lib/whatsapp/parse'
 import { handleCommand } from '@/lib/whatsapp/commands'
 import { sendMessage } from '@/lib/whatsapp/client'
+import { isAllowed } from '@/lib/whatsapp/allowlist'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -52,13 +53,7 @@ export async function POST(request: Request) {
 
   await db.insert(whatsappProcessedMessages).values({ id: message.id })
 
-  const allowed = (process.env.WHATSAPP_ALLOWED_NUMBERS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const from = normalisePhone(message.from)
-  const isAllowed = allowed.some((a) => normalisePhone(a) === from)
-  if (!isAllowed) return NextResponse.json({ ok: true })
+  if (!isAllowed(message.from)) return NextResponse.json({ ok: true })
 
   if (message.type !== 'text') return NextResponse.json({ ok: true })
 
@@ -67,8 +62,4 @@ export async function POST(request: Request) {
 
   await sendMessage({ to: message.from, body: reply, replyToMessageId: message.id })
   return NextResponse.json({ ok: true })
-}
-
-function normalisePhone(p: string): string {
-  return p.replace(/[^\d+]/g, '').replace(/^\+/, '')
 }
