@@ -1,38 +1,37 @@
 # WhatsApp
 
-Family WhatsApp group bot — read-only financials queries via @mention + (queued) daily digest of actionable emails. **Not present in main worktree.**
+Family WhatsApp group bot — read-only financials queries + (queued) daily digest of actionable emails.
 
-**Path ownership:** lives in a **separate worktree** at `C:\Users\MagedBoctor\Claude\family-action-hub-whatsapp` on branch `feat/whatsapp-bot`.
+**Path ownership:** `src/app/api/whatsapp/*`, `src/lib/whatsapp/*`
 
 ## Shipped
 
-- Nothing shipped to master or production yet. v1 code exists but has **0 commits**.
+- **v0.3.0** (2026-04-19) — v1 WhatsApp bot live. Three read-only commands: `spend`, `balance`, `recent`. HMAC-SHA256 signature verification. Idempotency via `whatsapp_processed_messages` table. Allowlist by E.164 phone number.
+- **v0.3.1** (2026-04-19) — post-launch polish: timezone-aware `spend` range (uses shared `APP_TIMEZONE='Australia/Sydney'` constant in `src/lib/constants.ts`); diagnostic logs stripped from webhook.
+- **Live URL:** `https://family-action-hub.vercel.app/api/whatsapp/webhook`
+- **Meta App ID:** `1249232917423303`; test number "from" is `+1 555 637 6549`
+- **Allowlist:** Maged `+61412408587`, Mandy `+61402149544`
 
 ## In-flight
 
-- **`feat/whatsapp-bot` branch — PAUSED 2026-04-15** (memory: `whatsapp_bot_resume.md`)
-  - v1 scope: 3 read-only commands (`spend`, `balance`, `recent`) via @mention in family WhatsApp group; allowlist by phone number
-  - State: 21/21 vitest tests passing, lint clean, zero tsc regressions
-  - Blocking task: Task 9 of the original plan — Meta app setup + ngrok smoke test (user hasn't figured out the Meta test number yet)
-  - Env vars pending in `.env.local`: `WHATSAPP_APP_SECRET`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ALLOWED_NUMBERS`
-  - Schema sync gap: `whatsapp_processed_messages` table created via raw SQL, not `drizzle-kit push` — see `whatsapp_schema_sync_todo.md` for the 7-step re-sync checklist
+- None.
 
 ## Queued (next)
 
-1. **Resume v1 bot** — Meta app config + ngrok + manual smoke (Task 9 of paused plan), then release gate (Task 10). Version bump + CHANGELOG + commit + push + verify deploy.
-2. **Schema re-sync** (memory: `whatsapp_schema_sync_todo.md`) — run the 7-step checklist so `schema.ts` matches live Neon. Must happen before any other schema migration in any domain.
-3. **Daily actionable-email digest** (memory: `whatsapp_daily_digest_queued.md`) — **blocked on v1 shipping first**. Cron-triggered WhatsApp summary of unreviewed actionable emails with Gmail deep links. Cross-domain with Scan (digest generator) and WhatsApp (send path).
+1. **Daily actionable-email digest** (memory: `whatsapp_daily_digest_queued.md`) — Cross-domain with Scan. Cron-triggered WhatsApp summary of unreviewed actionable emails with Gmail deep links. Ready to spec.
+2. **Permanent access token via Meta System User** — current `WHATSAPP_ACCESS_TOKEN` is a 24h temporary token. Set up a System User in Meta Business Settings to get a permanent token. No code changes needed — just env var refresh.
+3. **Add more family members to allowlist** — Meta test number caps at 5 registered recipients. When adding anyone, update both `WHATSAPP_ALLOWED_NUMBERS` env var AND Meta's recipient list.
 
 ## Deferred
 
-- Write commands (e.g. "mark task done") — explicitly v1 is read-only. Future consideration.
-- Multi-family-member identity routing — v1 treats everyone the same, allowlisted by phone number.
+- **Write commands** (e.g. "mark task done") — v1 is read-only by design.
+- **Multi-family-member identity routing** — v1 treats everyone the same, allowlisted by phone number. Adding identity-specific scoping deferred until a use case emerges.
 
 ## Gaps / rough edges
 
-- Work sits in a separate worktree. Current policy: don't merge to main worktree / master until Meta smoke test passes.
-- Daily digest feature idea is stale-safe — memory entry captures design questions to ask at spec time.
+- **24-hour access-token expiry.** Current temp token expires daily until System User is set up (see "Queued" above).
+- **Schema sync gap** (memory: `whatsapp_schema_sync_todo.md`) — `whatsapp_processed_messages` was created in live Neon via raw SQL. Verify it's now in sync with `src/lib/db/schema.ts` before any other schema change.
 
 ## Related memory
 
-- `whatsapp_bot_resume.md`, `whatsapp_schema_sync_todo.md`, `whatsapp_daily_digest_queued.md`
+- `whatsapp_bot_resume.md` (state: SHIPPED), `whatsapp_schema_sync_todo.md`, `whatsapp_daily_digest_queued.md`
