@@ -7,6 +7,8 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-04-19** — `feat` — **v0.2.2 — Legal pages.** Added `/privacy` and `/terms` as public routes (unauthenticated access allowed via middleware allowlist). Content reflects the app's single-household, invite-only nature — Google OAuth + Neon/Vercel/Gmail/Anthropic/Meta WhatsApp as data processors. Required for Meta App Review (WhatsApp Cloud API publish flow).
+
 - **2026-04-18** — `feat` — **v0.2.1 — Triage simplification.** Gmail scan triage flow collapsed from per-row Confirm/Reject + inline edit form to a single checkbox per row + one-click commit. Ticked rows become tasks with AI-suggested metadata; unticked rows are marked rejected and the classifier learns from the decision. Zero-tick commit opens a confirmation dialog. On success, redirects to `/tasks?new=<ids>` which auto-scrolls to the first new task and applies a 2-second amber ring. Added `POST /api/scan/triage/batch` (sequential — neon-http driver does not support transactions; AC6 atomic rollback is best-effort). Extracted `confirmEmailAsTask` + `rejectEmail` helpers into `src/lib/scan/triage-actions.ts`; single-row route delegates to them. vitest added for unit tests (6 passing). Refs: `docs/superpowers/specs/2026-04-18-triage-simplification-design.md`, `docs/superpowers/plans/2026-04-18-triage-simplification.md` (both local-only per gitignore).
 
 - **2026-04-18** — `chore` — **v0.2.0 — Recovery merge.** Ships work that had been stranded on `feat/financials-fingerprint-dedupe` for weeks and never merged, plus the per-domain backlog structure.

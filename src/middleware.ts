@@ -6,13 +6,14 @@ export default auth((req) => {
   const isOnLogin = req.nextUrl.pathname === '/login'
   const isAuthApi = req.nextUrl.pathname.startsWith('/api/auth')
   const isCronApi = req.nextUrl.pathname.startsWith('/api/cron')
+  const isLegalPage = req.nextUrl.pathname === '/privacy' || req.nextUrl.pathname === '/terms'
   const isPublicAsset = req.nextUrl.pathname.startsWith('/_next') ||
     req.nextUrl.pathname.startsWith('/icons') ||
     req.nextUrl.pathname === '/favicon.ico' ||
     req.nextUrl.pathname === '/manifest.json' ||
     req.nextUrl.pathname === '/sw.js'
 
-  if (isAuthApi || isCronApi || isPublicAsset) {
+  if (isAuthApi || isCronApi || isPublicAsset || isLegalPage) {
     return NextResponse.next()
   }
 
