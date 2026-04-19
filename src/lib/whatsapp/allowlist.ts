@@ -1,5 +1,5 @@
 export function normalisePhone(phone: string): string {
-  return phone.replace(/[^\d]/g, '').replace(/^0+/, '')
+  return phone.replace(/\D/g, '')
 }
 
 export function getAllowlist(): string[] {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { getAllowlist, isAllowed, normalisePhone } from '../allowlist'
 
 describe('normalisePhone', () => {
-  it('strips leading + and non-digits', () => {
+  it('strips all non-digits', () => {
     expect(normalisePhone('+61412408587')).toBe('61412408587')
     expect(normalisePhone('+61 412 408 587')).toBe('61412408587')
     expect(normalisePhone('(+61) 412-408-587')).toBe('61412408587')
