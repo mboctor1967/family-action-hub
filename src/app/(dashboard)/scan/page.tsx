@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Scan, Loader2, CheckCircle2, AlertTriangle, Mail, Filter, ExternalLink, ArrowRight } from 'lucide-react'
+import { Scan, Loader2, CheckCircle2, AlertTriangle, Mail, Filter, ExternalLink, ArrowRight, Settings as SettingsIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 
@@ -39,6 +39,7 @@ export default function ScanPage() {
   const [forceRescan, setForceRescan] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [gmailAccount, setGmailAccount] = useState<any>(null)
+  const [gmailTokenExpired, setGmailTokenExpired] = useState(false)
   const [progress, setProgress] = useState<ScanProgress | null>(null)
 
   const [triageItems, setTriageItems] = useState<TriageItem[]>([])
@@ -73,7 +74,13 @@ export default function ScanPage() {
   useEffect(() => {
     if (!session?.user) return
     fetch('/api/settings/gmail-accounts').then(r => r.ok ? r.json() : []).then(accts => {
-      if (accts?.length) setGmailAccount(accts[0])
+      if (accts?.length) {
+        const a = accts[0]
+        setGmailAccount(a)
+        if (a.tokenExpiry && new Date(a.tokenExpiry).getTime() < Date.now()) {
+          setGmailTokenExpired(true)
+        }
+      }
     }).catch(() => {})
   }, [session])
 
@@ -120,7 +127,10 @@ export default function ScanPage() {
               setResult(data)
               if (data.message) toast(data.message, { icon: '\u2139\uFE0F' })
               else toast.success(`Done! ${data.actionable} actionable, ${data.informational} info, ${data.noise} noise`)
-            } else if (eventType === 'error') toast.error(data.error)
+            } else if (eventType === 'error') {
+              toast.error(data.error)
+              if (/gmail token|reconnect your gmail/i.test(data.error)) setGmailTokenExpired(true)
+            }
           }
         }
       }
@@ -185,15 +195,37 @@ export default function ScanPage() {
       <PageHeader
         title="Email Scan"
         action={
-          <Link
-            href="/tasks"
-            className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-          >
-            Tasks
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/settings"
+              className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+            >
+              <SettingsIcon className="h-4 w-4" />
+              Settings
+            </Link>
+            <Link
+              href="/tasks"
+              className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+            >
+              Tasks
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         }
       />
+
+      {gmailTokenExpired && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-medium text-amber-900">Gmail access token expired</p>
+            <p className="text-amber-800">Reconnect to resume scanning. The daily WhatsApp digest will use existing data until you reconnect.</p>
+          </div>
+          <Link href="/settings" className="shrink-0">
+            <Button size="sm" variant="default">Reconnect Gmail</Button>
+          </Link>
+        </div>
+      )}
 
       {/* Scan controls — unchanged from before */}
       <Card>
