@@ -590,3 +590,9 @@ export const notionDedupeReports = pgTable('notion_dedupe_reports', {
 }, (table) => [
   index('idx_notion_dedupe_uploaded_at').on(table.uploadedAt),
 ])
+
+// WhatsApp processed message log (idempotency)
+export const whatsappProcessedMessages = pgTable('whatsapp_processed_messages', {
+  id: text('id').primaryKey(), // Meta message.id
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+})
