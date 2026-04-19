@@ -14,6 +14,8 @@ interface NavCardProps {
   badge?: string
   badgeVariant?: 'default' | 'info' | 'warning' | 'danger'
   disabled?: boolean
+  /** Pure-display card — no link wrapper, no hover affordance, not dimmed. For surfaces like the WhatsApp bot status where the card is informational only. */
+  informational?: boolean
 }
 
 /**
@@ -31,6 +33,7 @@ export function NavCard({
   badge,
   badgeVariant = 'default',
   disabled = false,
+  informational = false,
 }: NavCardProps) {
   const badgeStyles = {
     default: 'text-gray-500 bg-gray-100',
@@ -44,7 +47,9 @@ export function NavCard({
         'group h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-3 transition-all',
         disabled
           ? 'opacity-50 cursor-not-allowed'
-          : 'hover:shadow-md hover:border-blue-200 cursor-pointer'
+          : informational
+            ? ''
+            : 'hover:shadow-md hover:border-blue-200 cursor-pointer'
       )}
     >
       <div className="flex items-start justify-between mb-2">
@@ -60,7 +65,12 @@ export function NavCard({
           {external && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />}
         </div>
       </div>
-      <h3 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
+      <h3
+        className={cn(
+          'text-sm font-semibold text-gray-900 transition-colors',
+          informational ? '' : 'group-hover:text-blue-700',
+        )}
+      >
         {title}
       </h3>
       {stats && stats.length > 0 && (
@@ -76,7 +86,7 @@ export function NavCard({
     </div>
   )
 
-  if (disabled) return <div>{content}</div>
+  if (disabled || informational) return <div>{content}</div>
 
   if (external) {
     return (

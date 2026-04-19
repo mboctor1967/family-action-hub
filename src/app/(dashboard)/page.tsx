@@ -9,6 +9,7 @@ import {
   scanRuns,
   emailsScanned,
   notionDedupeReports,
+  whatsappProcessedMessages,
 } from '@/lib/db/schema'
 import { inArray, sql, eq, desc, isNull, and, gte, lte, lt } from 'drizzle-orm'
 import { NavCard } from '@/components/ui/nav-card'
@@ -31,6 +32,7 @@ import {
   CalendarDays,
   Copy,
   BookOpen,
+  MessageSquare,
 } from 'lucide-react'
 
 const formatAUD0 = (v: number) =>
@@ -74,6 +76,7 @@ export default async function HomePage() {
     taxRow,
     unreviewedTriageCount,
     latestDedupe,
+    whatsappStats,
   ] = await Promise.all([
     db.select({ n: sql<number>`count(*)` }).from(tasks).where(inArray(tasks.status, ['new', 'in_progress', 'waiting'])).then(r => Number(r[0]?.n || 0)),
     db.select({ n: sql<number>`count(*)` }).from(tasks).where(and(inArray(tasks.status, ['new', 'in_progress', 'waiting']), eq(tasks.priority, 'urgent'))).then(r => Number(r[0]?.n || 0)),
@@ -145,6 +148,11 @@ export default async function HomePage() {
       totalPages: notionDedupeReports.totalPages,
       decisions: notionDedupeReports.decisions,
     }).from(notionDedupeReports).orderBy(desc(notionDedupeReports.uploadedAt)).limit(1).then(r => r[0] || null) : Promise.resolve(null),
+
+    isAdmin ? db.select({
+      total: sql<number>`count(*)`,
+      lastAt: sql<string | null>`max(${whatsappProcessedMessages.receivedAt})`,
+    }).from(whatsappProcessedMessages).then(r => r[0] || { total: 0, lastAt: null }) : Promise.resolve({ total: 0, lastAt: null }),
   ])
 
   const lastScanLabel = lastScan?.completedAt
@@ -155,6 +163,23 @@ export default async function HomePage() {
     : '—'
   const topCat = topCategoryRow?.category || '—'
   const monthSpending = Number(topCategoryRow?.total || 0)
+
+  const whatsappCard = (() => {
+    const total = Number(whatsappStats?.total || 0)
+    const lastAtIso = whatsappStats?.lastAt as string | null
+    const allowedCount = (process.env.WHATSAPP_ALLOWED_NUMBERS ?? '')
+      .split(',').map(s => s.trim()).filter(Boolean).length
+    let lastLabel = '—'
+    if (lastAtIso) {
+      const diffMs = Date.now() - new Date(lastAtIso).getTime()
+      const diffMin = Math.round(diffMs / 60000)
+      if (diffMin < 1) lastLabel = 'just now'
+      else if (diffMin < 60) lastLabel = `${diffMin}m ago`
+      else if (diffMin < 1440) lastLabel = `${Math.round(diffMin / 60)}h ago`
+      else lastLabel = `${Math.round(diffMin / 1440)}d ago`
+    }
+    return { total, lastLabel, allowedCount }
+  })()
 
   const dedupeStats = (() => {
     if (!latestDedupe) return null
@@ -206,6 +231,21 @@ export default async function HomePage() {
               { label: 'To review', value: unreviewedTriageCount },
             ]}
           />
+          {isAdmin && (
+            <NavCard
+              title="WhatsApp Bot"
+              href=""
+              icon={MessageSquare}
+              iconColor="text-green-600"
+              iconBg="bg-green-50"
+              informational
+              stats={[
+                { label: 'Messages', value: whatsappCard.total },
+                { label: 'Last', value: whatsappCard.lastLabel },
+                { label: 'Users', value: whatsappCard.allowedCount },
+              ]}
+            />
+          )}
         </div>
       </div>
 

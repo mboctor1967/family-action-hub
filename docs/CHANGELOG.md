@@ -7,6 +7,8 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-04-19** — `feat` — **v0.3.2 — WhatsApp home stat card.** New informational NavCard on the home page's "Tasks & Inbox" row showing messages processed, last activity, and allowlist size. Pure display (`informational` prop on `NavCard`) — no click-through since WhatsApp IS the primary UI for that domain. Admin-only.
+
 - **2026-04-19** — `fix` — **v0.3.1 — WhatsApp bot polish.** (1) Timezone-aware `spend` — month boundaries now respect `Australia/Sydney` instead of Vercel's UTC, fixing a bug where end-of-month queries could be off by up to 14 hours. New shared `src/lib/constants.ts` exports `APP_TIMEZONE`, `APP_LOCALE`, `fyStartYearFor()`, and `nowInAppTz()` for reuse across domains. (2) Diagnostic `console.log` statements stripped from webhook route (were added for live smoke-test debugging; no longer needed). (3) Updated docs/domains/whatsapp.md + `whatsapp_bot_resume.md` memory file to reflect SHIPPED state.
 
 - **2026-04-19** — `feat` — **v0.3.0 — WhatsApp group bot (v1).** New domain. Family WhatsApp group bot with 3 read-only financials commands: `spend` (this month's total + top 3 categories), `balance` (latest per account), `recent` (last 5 transactions). Allowlist-gated by E.164 phone number via `WHATSAPP_ALLOWED_NUMBERS` env var. New endpoint `GET/POST /api/whatsapp/webhook`. HMAC-SHA256 signature verification on inbound. Idempotency via new `whatsapp_processed_messages` table. Fast-ack architecture (returns 200 before reply). 27/27 vitest tests green. Refs: `docs/features/2026-04-15-whatsapp-group-bot.md`, `docs/superpowers/plans/2026-04-15-whatsapp-group-bot.md` (plan local-only per gitignore).

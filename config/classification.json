@@ -303,6 +303,14 @@
       "original_classification": "actionable",
       "corrected_to": "noise/informational",
       "date": "2026-04-18"
+    },
+    {
+      "sender": "ngrok.com",
+      "subject_pattern": "Verify email address for ngrok.com",
+      "learned": "not actionable",
+      "original_classification": "actionable",
+      "corrected_to": "noise/informational",
+      "date": "2026-04-19"
     }
   ]
 }
