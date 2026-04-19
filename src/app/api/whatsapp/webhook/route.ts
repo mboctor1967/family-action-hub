@@ -7,6 +7,10 @@ import { parseCommand } from '@/lib/whatsapp/parse'
 import { handleCommand } from '@/lib/whatsapp/commands'
 import { sendMessage } from '@/lib/whatsapp/client'
 import { isAllowed } from '@/lib/whatsapp/allowlist'
+import { getActiveSnapshotForPhone } from '@/lib/whatsapp/digest-snapshot'
+import { parseDigestReply } from '@/lib/whatsapp/digest-reply-parser'
+import { handleDigestReply } from '@/lib/whatsapp/digest-reply-handler'
+import { formatNoSnapshot } from '@/lib/whatsapp/digest-format'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -57,9 +61,50 @@ export async function POST(request: Request) {
 
   if (message.type !== 'text') return NextResponse.json({ ok: true })
 
-  const cmd = parseCommand(message.text?.body ?? '')
-  const reply = await handleCommand(cmd)
+  const body = message.text?.body ?? ''
 
+  // Digest-reply branch — runs before the single-word command router.
+  // Digest replies are multi-word ("task 1,3 reject rest"), so we must try
+  // digest parsing first when the sender has an active snapshot.
+  const snapshot = await getActiveSnapshotForPhone(message.from)
+  if (snapshot) {
+    const maybeParsed = parseDigestReply(body, snapshot.positions.length)
+    if (maybeParsed !== null || /^help$/i.test(body.trim())) {
+      const fallbackUserId = process.env.DIGEST_FALLBACK_USER_ID
+      if (!fallbackUserId) {
+        console.error('[digest-reply] DIGEST_FALLBACK_USER_ID not set')
+        await sendMessage({
+          to: message.from,
+          body: '⚠️ Digest reply failed — internal config error.',
+          replyToMessageId: message.id,
+        })
+        return NextResponse.json({ ok: true })
+      }
+      const reply = await handleDigestReply({
+        phone: message.from,
+        text: body,
+        snapshot,
+        fallbackUserId,
+      })
+      await sendMessage({ to: message.from, body: reply, replyToMessageId: message.id })
+      return NextResponse.json({ ok: true })
+    }
+  } else {
+    // No active snapshot — if text LOOKS like digest grammar, explain rather than
+    // falling through to "unknown command" from the single-word router.
+    if (parseDigestReply(body, 1) !== null || /^help$/i.test(body.trim())) {
+      await sendMessage({
+        to: message.from,
+        body: formatNoSnapshot(),
+        replyToMessageId: message.id,
+      })
+      return NextResponse.json({ ok: true })
+    }
+  }
+
+  // Fall through: existing single-word command router
+  const cmd = parseCommand(body)
+  const reply = await handleCommand(cmd)
   await sendMessage({ to: message.from, body: reply, replyToMessageId: message.id })
   return NextResponse.json({ ok: true })
 }
