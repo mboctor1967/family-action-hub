@@ -7,7 +7,7 @@ import { TaskFilters } from '@/components/tasks/task-filters'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
-import { Plus, CheckSquare } from 'lucide-react'
+import { Plus, CheckSquare, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
 interface PageProps {
@@ -56,12 +56,21 @@ export default async function TasksPage({ searchParams }: PageProps) {
         title="All Tasks"
         subtitle={`${allTasks.length} task${allTasks.length !== 1 ? 's' : ''}`}
         action={
-          <Link href="/tasks/new">
-            <Button size="sm">
-              <Plus className="mr-1 h-4 w-4" />
-              New
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/scan"
+              className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Scan
+            </Link>
+            <Link href="/tasks/new">
+              <Button size="sm">
+                <Plus className="mr-1 h-4 w-4" />
+                New
+              </Button>
+            </Link>
+          </div>
         }
       />
 
