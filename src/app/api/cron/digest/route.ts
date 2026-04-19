@@ -5,9 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { runScanForAccount } from '@/lib/scan/run-scan'
 import { scoreEmail } from '@/lib/scan/priority-score'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
-import { sendMessage } from '@/lib/whatsapp/client'
 import { APP_LOCALE, APP_TIMEZONE } from '@/lib/constants'
-import { formatFailure } from '@/lib/whatsapp/digest-format'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = req.headers.get('authorization')
@@ -28,28 +26,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Run one fresh scan per Gmail account (recipients share the scanned mailbox).
   const accounts = await db.select().from(gmailAccounts)
-  let scanFailed = false
+  let scanErrors = 0
   for (const account of accounts) {
     try {
       await runScanForAccount(account.id)
     } catch (err) {
       console.error('[cron/digest] scan failed for account', account.id, err)
-      scanFailed = true
+      scanErrors++
     }
   }
-
-  if (scanFailed) {
-    let failed = 0
-    for (const recipient of rawRecipients) {
-      try {
-        await sendMessage({ to: recipient, body: formatFailure() })
-      } catch (err) {
-        console.error('[cron/digest] failure notification send failed', recipient, err)
-      }
-      failed++
-    }
-    return NextResponse.json({ sent: 0, failed, skipped: 0 })
-  }
+  // Scan failure is non-fatal — continue with existing DB state so a stale
+  // access token doesn't block the digest entirely. The failure is logged.
 
   // Fetch actionable + unreviewed emails across all accounts.
   const items = await db

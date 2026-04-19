@@ -4,7 +4,6 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/scan/run-scan', () => ({ runScanForAccount: vi.fn() }))
 vi.mock('@/lib/whatsapp/digest-sender', () => ({ sendDigest: vi.fn() }))
-vi.mock('@/lib/whatsapp/client', () => ({ sendMessage: vi.fn() }))
 vi.mock('@/lib/scan/priority-score', () => ({
   scoreEmail: vi.fn().mockImplementation((e: any) => (e?.subject?.includes('due') ? 5 : 1)),
 }))
@@ -12,7 +11,6 @@ vi.mock('@/lib/scan/priority-score', () => ({
 import { POST } from '../route'
 import { runScanForAccount } from '@/lib/scan/run-scan'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
-import { sendMessage } from '@/lib/whatsapp/client'
 import { db } from '@/lib/db'
 
 function makeReq(headers: Record<string, string>) {
@@ -100,26 +98,24 @@ describe('POST /api/cron/digest', () => {
     expect(sendDigest).toHaveBeenCalled()
   })
 
-  it('sends failure message when scan throws', async () => {
+  it('scan failure is non-fatal — digest still sends from existing DB state', async () => {
     ;(runScanForAccount as any).mockRejectedValue(new Error('scan boom'))
 
-    // Mock db.select().from(gmailAccounts)
-    const mockSelectChain = {
-      from: vi.fn().mockResolvedValue([
-        { id: 'acc-1', email: 'test@gmail.com' },
-      ]),
-    }
-    ;(db as any).select = vi.fn().mockReturnValue(mockSelectChain)
+    // Mock db.select(): plain call returns gmailAccounts list; field-select returns emails
+    ;(db as any).select = vi.fn((fields?: any) => {
+      if (fields) {
+        return { from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) }
+      }
+      return { from: vi.fn().mockResolvedValue([{ id: 'acc-1' }]) }
+    })
 
     const res = await POST(makeReq({ authorization: 'Bearer test-secret' }))
     expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data.sent).toBe(0)
-    expect(data.failed).toBeGreaterThan(0)
-    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({
-      to: expect.any(String),
-      body: expect.stringContaining('Digest failed'),
-    }))
+    // Digest proceeds even though scan failed; sent to both recipients (with empty items).
+    expect(data.sent).toBe(2)
+    expect(data.failed).toBe(0)
+    expect(sendDigest).toHaveBeenCalledTimes(2)
   })
 
   it('returns 200 with skipped=1 when no recipients configured', async () => {
