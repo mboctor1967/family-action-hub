@@ -596,3 +596,15 @@ export const whatsappProcessedMessages = pgTable('whatsapp_processed_messages', 
   id: text('id').primaryKey(), // Meta message.id
   receivedAt: timestamp('received_at').notNull().defaultNow(),
 })
+
+// WhatsApp digest snapshots — reply-number → emailId resolution for daily digest replies
+export const whatsappDigestSnapshots = pgTable('whatsapp_digest_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  recipient: text('recipient').notNull(), // E.164 phone, e.g. "+61412408587"
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at'), // NULL = active; set when superseded
+  positions: text('positions').notNull(), // JSON array: [{pos:1,emailId:"..."},...]
+  messageId: text('message_id'), // WhatsApp wamid returned by send API
+}, (table) => [
+  index('idx_digest_snapshots_recipient').on(table.recipient),
+])
