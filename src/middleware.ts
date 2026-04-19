@@ -6,6 +6,7 @@ export default auth((req) => {
   const isOnLogin = req.nextUrl.pathname === '/login'
   const isAuthApi = req.nextUrl.pathname.startsWith('/api/auth')
   const isCronApi = req.nextUrl.pathname.startsWith('/api/cron')
+  const isWhatsAppWebhook = req.nextUrl.pathname.startsWith('/api/whatsapp/webhook')
   const isLegalPage = req.nextUrl.pathname === '/privacy' || req.nextUrl.pathname === '/terms'
   const isPublicAsset = req.nextUrl.pathname.startsWith('/_next') ||
     req.nextUrl.pathname.startsWith('/icons') ||
@@ -13,7 +14,7 @@ export default auth((req) => {
     req.nextUrl.pathname === '/manifest.json' ||
     req.nextUrl.pathname === '/sw.js'
 
-  if (isAuthApi || isCronApi || isPublicAsset || isLegalPage) {
+  if (isAuthApi || isCronApi || isWhatsAppWebhook || isPublicAsset || isLegalPage) {
     return NextResponse.next()
   }
 
