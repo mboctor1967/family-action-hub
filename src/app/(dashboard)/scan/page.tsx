@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Scan, Loader2, CheckCircle2, AlertTriangle, Mail, Filter, ExternalLink } from 'lucide-react'
+import { Scan, Loader2, CheckCircle2, AlertTriangle, Mail, Filter, ExternalLink, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 
@@ -182,7 +182,18 @@ export default function ScanPage() {
 
   return (
     <div className="space-y-6 pb-24">
-      <PageHeader title="Email Scan" />
+      <PageHeader
+        title="Email Scan"
+        action={
+          <Link
+            href="/tasks"
+            className="text-sm text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+          >
+            Tasks
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        }
+      />
 
       {/* Scan controls — unchanged from before */}
       <Card>
