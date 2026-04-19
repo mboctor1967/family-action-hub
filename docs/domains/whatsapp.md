@@ -21,6 +21,8 @@ Family WhatsApp group bot — read-only financials queries + (queued) daily dige
 1. **Daily actionable-email digest** (memory: `whatsapp_daily_digest_queued.md`) — Cross-domain with Scan. Cron-triggered WhatsApp summary of unreviewed actionable emails with Gmail deep links. Ready to spec.
 2. **Permanent access token via Meta System User** — current `WHATSAPP_ACCESS_TOKEN` is a 24h temporary token. Set up a System User in Meta Business Settings to get a permanent token. No code changes needed — just env var refresh.
 3. **Add more family members to allowlist** — Meta test number caps at 5 registered recipients. When adding anyone, update both `WHATSAPP_ALLOWED_NUMBERS` env var AND Meta's recipient list.
+4. **[Home stat card] WhatsApp bot visibility on home page** — NavCard showing "N messages processed, last: X min ago" pulled from `whatsapp_processed_messages`. ~30 min of work. Cross-domain with Home/Shell. Design decision already recorded: WhatsApp IS the primary UI; this card is for observability only, no click-through needed.
+5. **[Admin UI] `/whatsapp` management page** — full page for: last N messages + replies log, allowlist view, env-var health ("token expires in 18h"), add/remove phone number without Vercel dashboard. Worth doing when there are 2+ more commands or when Mandy wants self-service. ~3-4 hr of work.
 
 ## Deferred
 
