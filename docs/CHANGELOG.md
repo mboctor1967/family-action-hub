@@ -7,6 +7,8 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-04-20** — `feat` — **v0.3.3 — Scan ↔ Tasks nav quick-links.** Added `action`-slot links on `/scan` ("Tasks →") and `/tasks` ("← Scan") page headers so the triage-to-task workflow can be navigated without going through the home page. UX polish only — no schema or API changes. Standalone branch `feat/ux/scan-tasks-crosslink`, shipped ahead of the Gmail daily digest feature.
+
 - **2026-04-19** — `feat` — **v0.3.2 — WhatsApp home stat card.** New informational NavCard on the home page's "Tasks & Inbox" row showing messages processed, last activity, and allowlist size. Pure display (`informational` prop on `NavCard`) — no click-through since WhatsApp IS the primary UI for that domain. Admin-only.
 
 - **2026-04-19** — `fix` — **v0.3.1 — WhatsApp bot polish.** (1) Timezone-aware `spend` — month boundaries now respect `Australia/Sydney` instead of Vercel's UTC, fixing a bug where end-of-month queries could be off by up to 14 hours. New shared `src/lib/constants.ts` exports `APP_TIMEZONE`, `APP_LOCALE`, `fyStartYearFor()`, and `nowInAppTz()` for reuse across domains. (2) Diagnostic `console.log` statements stripped from webhook route (were added for live smoke-test debugging; no longer needed). (3) Updated docs/domains/whatsapp.md + `whatsapp_bot_resume.md` memory file to reflect SHIPPED state.
