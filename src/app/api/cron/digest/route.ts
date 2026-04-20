@@ -83,6 +83,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       await sendDigest({
         recipient,
         items: scored.map((s) => ({
+          id: s.item.id,
           subject: s.item.subject,
           fromName: s.item.fromName,
           fromAddress: s.item.fromAddress,

@@ -11,8 +11,8 @@ import {
 
 describe('formatDigest', () => {
   const items = [
-    { subject: 'Electricity bill', fromName: 'AGL', fromAddress: 'no-reply@agl.com.au', gmailMessageId: 'abc' },
-    { subject: 'ATO notice', fromName: null, fromAddress: 'ato@notifications.gov.au', gmailMessageId: 'def' },
+    { id: 'uuid-1', subject: 'Electricity bill', fromName: 'AGL', fromAddress: 'no-reply@agl.com.au', gmailMessageId: 'abc' },
+    { id: 'uuid-2', subject: 'ATO notice', fromName: null, fromAddress: 'ato@notifications.gov.au', gmailMessageId: 'def' },
   ]
 
   it('formats header + numbered items + reply grammar', () => {

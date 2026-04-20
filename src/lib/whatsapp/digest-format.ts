@@ -1,8 +1,9 @@
 export type DigestItem = {
+  id: string                     // emails_scanned.id UUID — used for triage lookups
   subject: string | null
   fromName: string | null
   fromAddress: string | null
-  gmailMessageId: string
+  gmailMessageId: string         // Gmail message id — used for deep-link URL
 }
 
 const HELP_GRAMMAR = `Reply:

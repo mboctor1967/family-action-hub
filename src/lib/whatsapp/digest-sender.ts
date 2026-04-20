@@ -22,6 +22,9 @@ export async function sendDigest(args: {
 
   await sendMessage({ to: args.recipient, body })
 
-  const positions = shown.map((item, i) => ({ pos: i + 1, emailId: item.gmailMessageId }))
+  // Snapshot stores emails_scanned.id (UUID), NOT the Gmail message_id — so the
+  // reply handler can call confirmEmailAsTask/rejectEmail directly (both look
+  // up by the UUID primary key, not by Gmail message_id).
+  const positions = shown.map((item, i) => ({ pos: i + 1, emailId: item.id }))
   await persistSnapshot({ recipient: args.recipient, positions, messageId: null })
 }
