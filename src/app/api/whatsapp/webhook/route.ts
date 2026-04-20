@@ -64,42 +64,38 @@ export async function POST(request: Request) {
   const body = message.text?.body ?? ''
 
   // Digest-reply branch — runs before the single-word command router.
-  // Digest replies are multi-word ("task 1,3 reject rest"), so we must try
-  // digest parsing first when the sender has an active snapshot.
+  // Detect digest intent by prefix so malformed replies still get the digest
+  // help grammar (not the old spend/balance/recent router).
+  const looksLikeDigest = /^\s*(task|reject|done|help)\b/i.test(body)
   const snapshot = await getActiveSnapshotForPhone(message.from)
-  if (snapshot) {
-    const maybeParsed = parseDigestReply(body, snapshot.positions.length)
-    if (maybeParsed !== null || /^help$/i.test(body.trim())) {
-      const fallbackUserId = process.env.DIGEST_FALLBACK_USER_ID
-      if (!fallbackUserId) {
-        console.error('[digest-reply] DIGEST_FALLBACK_USER_ID not set')
-        await sendMessage({
-          to: message.from,
-          body: '⚠️ Digest reply failed — internal config error.',
-          replyToMessageId: message.id,
-        })
-        return NextResponse.json({ ok: true })
-      }
-      const reply = await handleDigestReply({
-        phone: message.from,
-        text: body,
-        snapshot,
-        fallbackUserId,
-      })
-      await sendMessage({ to: message.from, body: reply, replyToMessageId: message.id })
-      return NextResponse.json({ ok: true })
-    }
-  } else {
-    // No active snapshot — if text LOOKS like digest grammar, explain rather than
-    // falling through to "unknown command" from the single-word router.
-    if (parseDigestReply(body, 1) !== null || /^help$/i.test(body.trim())) {
+  if (snapshot && looksLikeDigest) {
+    const fallbackUserId = process.env.DIGEST_FALLBACK_USER_ID
+    if (!fallbackUserId) {
+      console.error('[digest-reply] DIGEST_FALLBACK_USER_ID not set')
       await sendMessage({
         to: message.from,
-        body: formatNoSnapshot(),
+        body: '⚠️ Digest reply failed — internal config error.',
         replyToMessageId: message.id,
       })
       return NextResponse.json({ ok: true })
     }
+    const reply = await handleDigestReply({
+      phone: message.from,
+      text: body,
+      snapshot,
+      fallbackUserId,
+    })
+    await sendMessage({ to: message.from, body: reply, replyToMessageId: message.id })
+    return NextResponse.json({ ok: true })
+  }
+  if (!snapshot && looksLikeDigest) {
+    // No active snapshot — explain rather than falling through to "unknown command".
+    await sendMessage({
+      to: message.from,
+      body: formatNoSnapshot(),
+      replyToMessageId: message.id,
+    })
+    return NextResponse.json({ ok: true })
   }
 
   // Fall through: existing single-word command router
