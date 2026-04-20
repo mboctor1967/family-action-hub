@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { whatsappDigestSnapshots } from '@/lib/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
+import { normalisePhone } from './allowlist'
 
 export type Position = { pos: number; emailId: string }
 
@@ -19,7 +20,7 @@ export async function persistSnapshot(args: {
   const [row] = await db
     .insert(whatsappDigestSnapshots)
     .values({
-      recipient: args.recipient,
+      recipient: normalisePhone(args.recipient),
       positions: JSON.stringify(args.positions),
       messageId: args.messageId,
     })
@@ -40,7 +41,7 @@ export async function getActiveSnapshotForPhone(
     .from(whatsappDigestSnapshots)
     .where(
       and(
-        eq(whatsappDigestSnapshots.recipient, recipient),
+        eq(whatsappDigestSnapshots.recipient, normalisePhone(recipient)),
         isNull(whatsappDigestSnapshots.expiresAt),
       ),
     )
@@ -63,7 +64,7 @@ export async function expireSnapshotsForPhone(recipient: string): Promise<void> 
     .set({ expiresAt: new Date() })
     .where(
       and(
-        eq(whatsappDigestSnapshots.recipient, recipient),
+        eq(whatsappDigestSnapshots.recipient, normalisePhone(recipient)),
         isNull(whatsappDigestSnapshots.expiresAt),
       ),
     )

@@ -27,7 +27,8 @@ describe('digest-snapshot helpers', () => {
     })
 
     expect(id).toBe('new-id')
-    expect(inserted[0].recipient).toBe('+61412408587')
+    // Stored recipient is normalised (no '+' prefix) so it matches webhook 'from' field
+    expect(inserted[0].recipient).toBe('61412408587')
     expect(JSON.parse(inserted[0].positions)).toEqual([{ pos: 1, emailId: 'a' }, { pos: 2, emailId: 'b' }])
     expect(inserted[0].messageId).toBe('wamid.abc')
   })
