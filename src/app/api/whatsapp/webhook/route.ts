@@ -98,6 +98,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
+  // Force-scan command — triggers the digest cron on demand (on top of the 20:00 UTC schedule).
+  if (/^\s*scan\s*$/i.test(body)) {
+    const cronSecret = process.env.CRON_SECRET
+    const appUrl = process.env.AUTH_URL ?? 'https://family-action-hub.vercel.app'
+    if (cronSecret) {
+      // Fire and forget — don't await. The digest will arrive on its own.
+      fetch(`${appUrl}/api/cron/digest`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cronSecret}` },
+      }).catch((err) => console.error('[scan command] cron trigger failed', err))
+    } else {
+      console.error('[scan command] CRON_SECRET not set')
+    }
+    await sendMessage({
+      to: message.from,
+      body: '🔄 Scanning Gmail now — digest will arrive in 20-60 seconds.',
+      replyToMessageId: message.id,
+    })
+    return NextResponse.json({ ok: true })
+  }
+
   // Fall through: existing single-word command router
   const cmd = parseCommand(body)
   const reply = await handleCommand(cmd)
