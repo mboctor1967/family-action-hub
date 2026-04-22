@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     if (cronSecret) {
       // Fire and forget — don't await. The digest will arrive on its own.
       fetch(`${appUrl}/api/cron/digest`, {
-        method: 'POST',
+        method: 'GET',
         headers: { Authorization: `Bearer ${cronSecret}` },
       }).catch((err) => console.error('[scan command] cron trigger failed', err))
     } else {

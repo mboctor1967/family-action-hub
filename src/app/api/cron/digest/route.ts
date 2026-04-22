@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emailsScanned, gmailAccounts } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { runScanForAccount } from '@/lib/scan/run-scan'
+import { runScanForAccount, type ScanResult } from '@/lib/scan/run-scan'
 import { scoreEmail } from '@/lib/scan/priority-score'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
+import type { DigestStats } from '@/lib/whatsapp/digest-format'
 import { APP_LOCALE, APP_TIMEZONE } from '@/lib/constants'
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+// Vercel Cron invokes scheduled paths via GET, injecting `Authorization: Bearer $CRON_SECRET`.
+// The WhatsApp "scan" command also hits this endpoint with the same auth header — see webhook/route.ts.
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = req.headers.get('authorization')
   const expected = `Bearer ${process.env.CRON_SECRET ?? ''}`
   if (!process.env.CRON_SECRET || auth !== expected) {
@@ -26,10 +29,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Run one fresh scan per Gmail account (recipients share the scanned mailbox).
   const accounts = await db.select().from(gmailAccounts)
+  const scanResults: ScanResult[] = []
   let scanErrors = 0
   for (const account of accounts) {
     try {
-      await runScanForAccount(account.id)
+      const result = await runScanForAccount(account.id)
+      scanResults.push(result)
     } catch (err) {
       console.error('[cron/digest] scan failed for account', account.id, err)
       scanErrors++
@@ -69,12 +74,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return bd - ad
     })
 
-  const dateLabel = new Intl.DateTimeFormat(APP_LOCALE, {
+  const dateFmt = new Intl.DateTimeFormat(APP_LOCALE, {
     timeZone: APP_TIMEZONE,
     year: 'numeric',
     month: 'short',
     day: '2-digit',
-  }).format(new Date())
+  })
+  const shortFmt = new Intl.DateTimeFormat(APP_LOCALE, {
+    timeZone: APP_TIMEZONE,
+    month: 'short',
+    day: '2-digit',
+  })
+  const dateLabel = dateFmt.format(new Date())
+
+  // Aggregate counts across all Gmail accounts scanned this run. When every account's
+  // scan errored we still send (non-fatal), but flag the stats as partial.
+  const totalEmails = scanResults.reduce((s, r) => s + r.totalEmails, 0)
+  const newEmails = scanResults.reduce((s, r) => s + r.newEmails, 0)
+  const alreadyScanned = scanResults.reduce((s, r) => s + r.alreadyScanned, 0)
+  const earliestFrom = scanResults.reduce<Date | null>(
+    (acc, r) => (acc === null || r.windowFrom < acc ? r.windowFrom : acc),
+    null,
+  )
+  const latestTo = scanResults.reduce<Date | null>(
+    (acc, r) => (acc === null || r.windowTo > acc ? r.windowTo : acc),
+    null,
+  )
+  // Fallback window when no scan succeeded: same 7d default as runScanForAccount.
+  const fallbackTo = new Date()
+  const fallbackFrom = new Date(fallbackTo)
+  fallbackFrom.setDate(fallbackFrom.getDate() - 7)
+
+  const stats: DigestStats = {
+    windowFromLabel: shortFmt.format(earliestFrom ?? fallbackFrom),
+    windowToLabel: shortFmt.format(latestTo ?? fallbackTo),
+    totalEmails,
+    newEmails,
+    alreadyScanned,
+    actionableCount: scored.length,
+    scanFailed: accounts.length > 0 && scanResults.length === 0,
+  }
 
   let sent = 0
   let failed = 0
@@ -90,6 +129,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           gmailMessageId: s.item.messageId,
         })),
         dateLabel,
+        stats,
       })
       sent++
     } catch (err) {
@@ -98,5 +138,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ sent, failed, skipped: 0 })
+  return NextResponse.json({ sent, failed, skipped: 0, scanErrors })
 }

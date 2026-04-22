@@ -9,15 +9,26 @@ import {
   formatUnrecognised,
 } from '../digest-format'
 
+const STATS = {
+  windowFromLabel: '15 Apr',
+  windowToLabel: '22 Apr',
+  totalEmails: 87,
+  newEmails: 12,
+  alreadyScanned: 75,
+  actionableCount: 2,
+}
+
 describe('formatDigest', () => {
   const items = [
     { id: 'uuid-1', subject: 'Electricity bill', fromName: 'AGL', fromAddress: 'no-reply@agl.com.au', gmailMessageId: 'abc' },
     { id: 'uuid-2', subject: 'ATO notice', fromName: null, fromAddress: 'ato@notifications.gov.au', gmailMessageId: 'def' },
   ]
 
-  it('formats header + numbered items + reply grammar', () => {
-    const out = formatDigest(items, { dateLabel: '2026-04-20', overflowCount: 0 })
-    expect(out).toContain('Gmail digest — 2026-04-20')
+  it('formats header + window stats + numbered items + reply grammar', () => {
+    const out = formatDigest(items, { dateLabel: '2026-04-22', overflowCount: 0, stats: STATS })
+    expect(out).toContain('Gmail digest — 2026-04-22')
+    expect(out).toContain('Window: 15 Apr – 22 Apr')
+    expect(out).toContain('87 emails (12 new, 75 already scanned)')
     expect(out).toContain('2 actionable')
     expect(out).toContain('1. Electricity bill')
     expect(out).toContain('From: AGL <no-reply@agl.com.au>')
@@ -29,26 +40,49 @@ describe('formatDigest', () => {
   })
 
   it('falls back to fromAddress only when fromName missing', () => {
-    const out = formatDigest(items, { dateLabel: '2026-04-20', overflowCount: 0 })
+    const out = formatDigest(items, { dateLabel: '2026-04-22', overflowCount: 0, stats: STATS })
     expect(out).toContain('From: ato@notifications.gov.au')
     expect(out).not.toContain('From: null')
   })
 
   it('appends overflow footer when overflowCount > 0', () => {
-    const out = formatDigest(items, { dateLabel: '2026-04-20', overflowCount: 5 })
+    const out = formatDigest(items, { dateLabel: '2026-04-22', overflowCount: 5, stats: STATS })
     expect(out).toContain('+5 more — open /scan to review all.')
   })
 
   it('omits overflow footer when overflowCount = 0', () => {
-    const out = formatDigest(items, { dateLabel: '2026-04-20', overflowCount: 0 })
+    const out = formatDigest(items, { dateLabel: '2026-04-22', overflowCount: 0, stats: STATS })
     expect(out).not.toContain('+0 more')
     expect(out).not.toContain('more — open /scan')
+  })
+
+  it('flags partial stats when scanFailed = true', () => {
+    const out = formatDigest(items, {
+      dateLabel: '2026-04-22',
+      overflowCount: 0,
+      stats: { ...STATS, scanFailed: true },
+    })
+    expect(out).toContain('⚠️ scan error')
   })
 })
 
 describe('formatZeroItems', () => {
-  it('returns inbox-clear heartbeat', () => {
-    expect(formatZeroItems()).toBe('✅ Inbox clear — 0 actionable emails.')
+  it('says no new emails when newEmails = 0', () => {
+    const out = formatZeroItems({ ...STATS, newEmails: 0, alreadyScanned: 87, actionableCount: 0 })
+    expect(out).toContain('✅ Inbox clear — no new emails since last scan.')
+    expect(out).toContain('Window: 15 Apr – 22 Apr')
+    expect(out).toContain('0 actionable')
+  })
+
+  it('explains new-but-none-actionable when newEmails > 0 and actionableCount = 0', () => {
+    const out = formatZeroItems({ ...STATS, newEmails: 12, alreadyScanned: 75, actionableCount: 0 })
+    expect(out).toContain('12 new emails, none need action.')
+    expect(out).toContain('Window: 15 Apr – 22 Apr')
+  })
+
+  it('uses singular "email" when newEmails = 1', () => {
+    const out = formatZeroItems({ ...STATS, newEmails: 1, alreadyScanned: 86, actionableCount: 0 })
+    expect(out).toContain('1 new email, none need action.')
   })
 })
 

@@ -17,6 +17,16 @@ export type ScanResult = {
   informational: number
   noise: number
   skipped: number
+  /** Total emails Gmail returned for the scan window (new + already-scanned). */
+  totalEmails: number
+  /** Emails not previously seen by this account — the set that went to classification. */
+  newEmails: number
+  /** Emails already present in `emails_scanned` for this account, excluded from re-classification. */
+  alreadyScanned: number
+  /** Start of the scan window (inclusive), UTC. */
+  windowFrom: Date
+  /** End of the scan window (= scan start time), UTC. */
+  windowTo: Date
 }
 
 export type RunScanOptions = {
@@ -63,7 +73,8 @@ export async function runScanForAccount(
   send('progress', { step: 2, total: 5, label: 'Fetching emails from Gmail...', percent: 15 })
 
   const windowDays = scanWindow === '24h' ? 1 : scanWindow === '7d' ? 7 : scanWindow === '30d' ? 30 : 7
-  const afterDate = new Date()
+  const windowTo = new Date()
+  const afterDate = new Date(windowTo)
   afterDate.setDate(afterDate.getDate() - windowDays)
   const query = `after:${afterDate.getFullYear()}/${afterDate.getMonth() + 1}/${afterDate.getDate()}`
 
@@ -136,6 +147,11 @@ export async function runScanForAccount(
       informational: 0,
       noise: 0,
       skipped,
+      totalEmails: allEmails.length,
+      newEmails: 0,
+      alreadyScanned: allEmails.length,
+      windowFrom: afterDate,
+      windowTo,
     }
   }
 
@@ -254,5 +270,10 @@ export async function runScanForAccount(
     informational: informationalCount,
     noise: noiseCount + aiNoiseCount,
     skipped,
+    totalEmails: allEmails.length,
+    newEmails: newEmails.length,
+    alreadyScanned: skipped,
+    windowFrom: afterDate,
+    windowTo,
   }
 }

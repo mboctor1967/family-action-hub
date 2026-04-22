@@ -6,6 +6,24 @@ export type DigestItem = {
   gmailMessageId: string         // Gmail message id — used for deep-link URL
 }
 
+export type DigestStats = {
+  windowFromLabel: string        // e.g. "15 Apr"
+  windowToLabel: string          // e.g. "22 Apr"
+  totalEmails: number            // Gmail-window total across all scanned accounts
+  newEmails: number              // emails newly classified this run
+  alreadyScanned: number         // emails already in DB (skipped by classifier)
+  actionableCount: number        // actionable + unreviewed at send time
+  scanFailed?: boolean           // true when every account's scan errored — stats may be partial
+}
+
+function formatStatsLine(stats: DigestStats): string {
+  const newVsSkipped = stats.alreadyScanned > 0
+    ? `${stats.newEmails} new, ${stats.alreadyScanned} already scanned`
+    : `${stats.newEmails} new`
+  const suffix = stats.scanFailed ? ' · ⚠️ scan error (showing DB state)' : ''
+  return `Window: ${stats.windowFromLabel} – ${stats.windowToLabel} · ${stats.totalEmails} emails (${newVsSkipped}) · ${stats.actionableCount} actionable${suffix}`
+}
+
 const HELP_GRAMMAR = `Reply:
 • task 1,3       — create tasks
 • task 1-5       — range
@@ -36,10 +54,9 @@ function formatItem(item: DigestItem, position: number): string {
 
 export function formatDigest(
   items: DigestItem[],
-  opts: { dateLabel: string; overflowCount: number },
+  opts: { dateLabel: string; overflowCount: number; stats: DigestStats },
 ): string {
-  const shownCount = items.length
-  const header = `📬 Gmail digest — ${opts.dateLabel}\n${shownCount} actionable${opts.overflowCount > 0 ? ` (top ${shownCount})` : ' (showing all)'}`
+  const header = `📬 Gmail digest — ${opts.dateLabel}\n${formatStatsLine(opts.stats)}`
   const body = items.map((item, i) => formatItem(item, i + 1)).join('\n\n')
   const overflow = opts.overflowCount > 0
     ? `\n\n+${opts.overflowCount} more — open /scan to review all.`
@@ -47,8 +64,11 @@ export function formatDigest(
   return `${header}\n\n${body}${overflow}\n\n${HELP_GRAMMAR}`
 }
 
-export function formatZeroItems(): string {
-  return '✅ Inbox clear — 0 actionable emails.'
+export function formatZeroItems(stats: DigestStats): string {
+  const reason = stats.newEmails === 0
+    ? 'no new emails since last scan.'
+    : `${stats.newEmails} new email${stats.newEmails === 1 ? '' : 's'}, none need action.`
+  return `✅ Inbox clear — ${reason}\n${formatStatsLine(stats)}`
 }
 
 export function formatHelp(): string {

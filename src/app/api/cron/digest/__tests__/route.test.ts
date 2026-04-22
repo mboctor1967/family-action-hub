@@ -8,19 +8,19 @@ vi.mock('@/lib/scan/priority-score', () => ({
   scoreEmail: vi.fn().mockImplementation((e: any) => (e?.subject?.includes('due') ? 5 : 1)),
 }))
 
-import { POST } from '../route'
+import { GET } from '../route'
 import { runScanForAccount } from '@/lib/scan/run-scan'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
 import { db } from '@/lib/db'
 
 function makeReq(headers: Record<string, string>) {
   return new NextRequest(new Request('http://localhost/api/cron/digest', {
-    method: 'POST',
+    method: 'GET',
     headers,
   }))
 }
 
-describe('POST /api/cron/digest', () => {
+describe('GET /api/cron/digest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     process.env.CRON_SECRET = 'test-secret'
@@ -31,16 +31,21 @@ describe('POST /api/cron/digest', () => {
       informational: 0,
       noise: 0,
       skipped: 0,
+      totalEmails: 10,
+      newEmails: 4,
+      alreadyScanned: 6,
+      windowFrom: new Date('2026-04-15T00:00:00Z'),
+      windowTo: new Date('2026-04-22T00:00:00Z'),
     })
   })
 
   it('returns 401 when Authorization header missing', async () => {
-    const res = await POST(makeReq({}))
+    const res = await GET(makeReq({}))
     expect(res.status).toBe(401)
   })
 
   it('returns 401 when Authorization does not match CRON_SECRET', async () => {
-    const res = await POST(makeReq({ authorization: 'Bearer wrong' }))
+    const res = await GET(makeReq({ authorization: 'Bearer wrong' }))
     expect(res.status).toBe(401)
   })
 
@@ -90,7 +95,7 @@ describe('POST /api/cron/digest', () => {
       return mockSelectChain
     })
 
-    const res = await POST(makeReq({ authorization: 'Bearer test-secret' }))
+    const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.sent).toBeGreaterThanOrEqual(1)
@@ -109,7 +114,7 @@ describe('POST /api/cron/digest', () => {
       return { from: vi.fn().mockResolvedValue([{ id: 'acc-1' }]) }
     })
 
-    const res = await POST(makeReq({ authorization: 'Bearer test-secret' }))
+    const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
     expect(res.status).toBe(200)
     const data = await res.json()
     // Digest proceeds even though scan failed; sent to both recipients (with empty items).
@@ -124,7 +129,7 @@ describe('POST /api/cron/digest', () => {
       from: vi.fn().mockResolvedValue([]),
     })
 
-    const res = await POST(makeReq({ authorization: 'Bearer test-secret' }))
+    const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.skipped).toBe(1)

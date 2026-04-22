@@ -1,5 +1,5 @@
 import { sendMessage } from '@/lib/whatsapp/client'
-import { formatDigest, formatZeroItems, type DigestItem } from './digest-format'
+import { formatDigest, formatZeroItems, type DigestItem, type DigestStats } from './digest-format'
 import { persistSnapshot, expireSnapshotsForPhone } from './digest-snapshot'
 
 const MAX_ITEMS = 20
@@ -8,17 +8,18 @@ export async function sendDigest(args: {
   recipient: string
   items: DigestItem[]
   dateLabel: string
+  stats: DigestStats
 }): Promise<void> {
   await expireSnapshotsForPhone(args.recipient)
 
   if (args.items.length === 0) {
-    await sendMessage({ to: args.recipient, body: formatZeroItems() })
+    await sendMessage({ to: args.recipient, body: formatZeroItems(args.stats) })
     return
   }
 
   const shown = args.items.slice(0, MAX_ITEMS)
   const overflowCount = Math.max(0, args.items.length - MAX_ITEMS)
-  const body = formatDigest(shown, { dateLabel: args.dateLabel, overflowCount })
+  const body = formatDigest(shown, { dateLabel: args.dateLabel, overflowCount, stats: args.stats })
 
   await sendMessage({ to: args.recipient, body })
 
