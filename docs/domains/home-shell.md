@@ -6,7 +6,9 @@ The top-level landing page, layout shell, shared UI primitives, and cross-cuttin
 
 ## Shipped
 
-- **v0.1.1 — UI refresh** (memory: `ui_refresh_next.md`) — nav bars removed, NavCards compacted, 13-card home grid, 5-stage Financials workflow grouping
+- **v0.3.2** (2026-04-19) — WhatsApp bot informational stat card on the home grid (observability, no click-through).
+- **v0.2.2** (2026-04-19) — `/privacy` and `/terms` public routes added (middleware allowlist). Required for Meta App Review.
+- **v0.1.1 — UI refresh** — nav bars removed, NavCards compacted, 13-card home grid, 5-stage Financials workflow grouping
 - **UI standardization** (memory: `ui_standardization_decisions.md`) — card radius `rounded-2xl`, inline box `rounded-lg`, button `rounded-md`, page spacing `space-y-6`, card padding `p-5`, compact NavCard `p-3`
 - **Home card stats** (memory: `home_card_stats.md`) — 13 cards with agreed server-computed stats
 - Auth: Google OAuth via NextAuth, `/api/*` returns JSON 401 (not HTML login redirect) — `e48946b`
@@ -35,4 +37,4 @@ The top-level landing page, layout shell, shared UI primitives, and cross-cuttin
 
 ## Related memory
 
-- `portal_landing_revisit.md`, `ui_refresh_next.md`, `ui_standardization_decisions.md`, `home_card_stats.md`, `modular_monolith_refactor.md`, `integrated_implementation_plan.md`, `sdlc_structure.md`, `deployment_info.md`
+- `portal_landing_revisit.md`, `ui_standardization_decisions.md`, `home_card_stats.md`, `modular_monolith_refactor.md`, `sdlc_structure.md`, `deployment_info.md`

@@ -127,6 +127,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           fromName: s.item.fromName,
           fromAddress: s.item.fromAddress,
           gmailMessageId: s.item.messageId,
+          date: s.item.date,
         })),
         dateLabel,
         stats,

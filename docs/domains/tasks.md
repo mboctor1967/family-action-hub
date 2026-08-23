@@ -12,18 +12,18 @@ Unified task list for the household — manual tasks + tasks auto-created from G
 - `?new=<ids>` param support with auto-scroll + 2-second amber ring; filter query-param preservation during URL cleanup (v0.2.1)
 - **v0.3.3** (2026-04-20) — Scan ↔ Tasks nav quick-links in page headers for faster triage→task navigation.
 - **v0.4.0** (2026-04-20) — Tasks can now be created from WhatsApp by replying to the daily Gmail digest (e.g. `task 1,3`). Reuses the existing `confirmEmailAsTask` helper; no task-schema changes. Reply owner falls back to Maged via `DIGEST_FALLBACK_USER_ID` until Mandy has a user record (see `mandy_hub_access_todo.md`).
+- **v0.2.1** (2026-04-18) — Tasks slice of the triage simplification ship: `TasksList` client component, `?new=<ids>` highlight handling with auto-scroll + 2-second amber ring, `highlight` prop on `TaskCard`, filter query-param preservation during URL cleanup.
 
 ## In-flight
 
-- **`feat/triage-simplification` branch** — tasks-side work is bundled with scan-side work (cross-domain — grandfathered before the single-domain rule was adopted). The Tasks slice is: `TasksList` client component, `?new=` highlight handling, optional `highlight` prop on TaskCard. Ready for release.
+- None.
 
 ## Queued (next)
 
-1. **Ship the triage simplification merge** — see `scan.md` for the coupled release plan.
-2. **Recurring tasks UI** — schema supports `isRecurring` + `recurrenceRule` (tasks table) but no UI to set/manage them. Currently dead fields.
-3. **Snooze UI** — schema has `snoozedUntil` but no user-facing way to snooze.
-4. **Bulk actions on task list** — multi-select + bulk status-change / reassign / delete. Natural follow-on to the triage simplification's "commit batch of decisions" pattern.
-5. **Topics tree editor** — topics schema supports parent/child but there's no UI to rearrange the tree.
+1. **Recurring tasks UI** — schema supports `isRecurring` + `recurrenceRule` (tasks table) but no UI to set/manage them. Currently dead fields.
+2. **Snooze UI** — schema has `snoozedUntil` but no user-facing way to snooze.
+3. **Bulk actions on task list** — multi-select + bulk status-change / reassign / delete. Natural follow-on to the triage simplification's "commit batch of decisions" pattern.
+4. **Topics tree editor** — topics schema supports parent/child but there's no UI to rearrange the tree.
 
 ## Deferred
 
@@ -31,7 +31,7 @@ Unified task list for the household — manual tasks + tasks auto-created from G
 
 ## Gaps / rough edges
 
-- Task detail page has `wip(task-triage)` snapshot commits in history (`145f3e8`, `912b9df`) — need audit for dead code left from the pre-simplification flow once the new triage ships.
+- Task detail page has `wip(task-triage)` snapshot commits in history (`145f3e8`, `912b9df`) — audit for dead code left from the pre-simplification flow.
 - No test coverage on task-card / tasks-list components.
 
 ## Related memory

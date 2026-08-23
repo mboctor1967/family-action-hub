@@ -20,8 +20,8 @@ const STATS = {
 
 describe('formatDigest', () => {
   const items = [
-    { id: 'uuid-1', subject: 'Electricity bill', fromName: 'AGL', fromAddress: 'no-reply@agl.com.au', gmailMessageId: 'abc' },
-    { id: 'uuid-2', subject: 'ATO notice', fromName: null, fromAddress: 'ato@notifications.gov.au', gmailMessageId: 'def' },
+    { id: 'uuid-1', subject: 'Electricity bill', fromName: 'AGL', fromAddress: 'no-reply@agl.com.au', gmailMessageId: 'abc', date: new Date('2026-05-14T03:42:00Z') },
+    { id: 'uuid-2', subject: 'ATO notice', fromName: null, fromAddress: 'ato@notifications.gov.au', gmailMessageId: 'def', date: null },
   ]
 
   it('formats header + window stats + numbered items + reply grammar', () => {
@@ -37,6 +37,18 @@ describe('formatDigest', () => {
     expect(out).toContain('From: ato@notifications.gov.au')
     expect(out).toContain('Reply:')
     expect(out).toContain('task 1,3')
+  })
+
+  it('renders the email date inline next to the From line in Sydney short format', () => {
+    const out = formatDigest(items, { dateLabel: '2026-04-22', overflowCount: 0, stats: STATS })
+    // 2026-05-14T03:42:00Z = 14 May 13:42 in Sydney (AEST UTC+10)
+    expect(out).toContain('14 May · From: AGL <no-reply@agl.com.au>')
+  })
+
+  it('omits the date prefix when date is null', () => {
+    const out = formatDigest(items, { dateLabel: '2026-04-22', overflowCount: 0, stats: STATS })
+    // Item 2 has date=null — line should start with "From:" without a leading date
+    expect(out).toMatch(/2\. ATO notice\n {3}From: ato@notifications\.gov\.au/)
   })
 
   it('falls back to fromAddress only when fromName missing', () => {

@@ -1,9 +1,12 @@
+import { APP_LOCALE, APP_TIMEZONE } from '@/lib/constants'
+
 export type DigestItem = {
   id: string                     // emails_scanned.id UUID — used for triage lookups
   subject: string | null
   fromName: string | null
   fromAddress: string | null
   gmailMessageId: string         // Gmail message id — used for deep-link URL
+  date: Date | null              // email send date (null when unknown)
 }
 
 export type DigestStats = {
@@ -38,6 +41,12 @@ const HELP_EXAMPLE = `Example:
   Reply: task 1,3,5
   Result: 3 tasks created; items 2,4,6,7 remain unreviewed.`
 
+const SHORT_DATE_FMT = new Intl.DateTimeFormat(APP_LOCALE, {
+  timeZone: APP_TIMEZONE,
+  month: 'short',
+  day: '2-digit',
+})
+
 function formatFrom(item: DigestItem): string {
   if (item.fromName && item.fromAddress) return `From: ${item.fromName} <${item.fromAddress}>`
   if (item.fromAddress) return `From: ${item.fromAddress}`
@@ -48,8 +57,9 @@ function formatFrom(item: DigestItem): string {
 function formatItem(item: DigestItem, position: number): string {
   const subject = item.subject || '(no subject)'
   const from = formatFrom(item)
+  const datePrefix = item.date ? `${SHORT_DATE_FMT.format(item.date)} · ` : ''
   const link = `https://mail.google.com/mail/u/0/#all/${item.gmailMessageId}`
-  return `${position}. ${subject}\n   ${from}\n   ${link}`
+  return `${position}. ${subject}\n   ${datePrefix}${from}\n   ${link}`
 }
 
 export function formatDigest(

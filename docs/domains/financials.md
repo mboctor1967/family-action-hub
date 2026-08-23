@@ -6,7 +6,7 @@ Core personal/business financial tracking — accounts, transactions, categoriza
 
 ## Shipped
 
-- **v0.1.4 (stranded until 2026-04-17 recovery)** — transaction fingerprinting + QIF import + bank codes, spending trend chart, coverage tab with FY grouping + per-account rows + statement detail, account filter + categorize/import UI polish
+- **v0.2.0** (2026-04-18) — **Recovery merge** — ships the stranded `feat/financials-fingerprint-dedupe` work: transaction fingerprinting (content-hash dedup per account), QIF import, bank codes, spending trend chart, coverage tab with FY grouping + per-account rows + statement detail, account filter + categorize/import UI polish. Cross-domain (financials + tasks + scan — grandfathered before the single-domain rule). Merge commit `14ed3c8`, release `762a373`.
 - **v0.1.2 — Phase F1 Tax Prep** — `/financials/tax` tabbed view, entity-subfoldered ZIP export, rule-based ATO proposer, optional Claude AI enhancement, AI cost panel
 - **v0.1.1** — UI refresh (nav bars removed, NavCards compacted)
 - Pages live: `/financials`, `/accounts`, `/assumptions`, `/categories`, `/categorize`, `/coverage`, `/import`, `/spending`, `/subscriptions`, `/tax`, `/transfers`
@@ -14,15 +14,14 @@ Core personal/business financial tracking — accounts, transactions, categoriza
 
 ## In-flight
 
-- **`recovery/financials-merge` branch** (commit `d16dc0f`) — merges the stranded `feat/financials-fingerprint-dedupe` work back into master's line. **Not yet shipped to master.** Blocks everything else until merged + deployed.
+- None.
 
 ## Queued (next)
 
-1. **Ship the recovery merge** — version bump + CHANGELOG + deploy. Release first before starting anything new in this domain.
-2. **Taxonomy simplification** (memory: `taxonomy_simplification_deferred.md`) — replace legacy mixed taxonomy + dual ATO columns with two ATO-aligned trees (Personal + Business). Blocked on F1 shipping + real-data validation from end-of-FY use.
-3. **Persist filter selections** (memory: `persist_filter_selections.md`) — remember filters on Spending (and other filter-heavy pages) across reloads. localStorage first, DB later.
-4. **Enable `/financials/duplicates`** — NavCard exists on home as "Coming soon" (home page.tsx:329–335); route not built.
-5. **Server-compute Category Manager stats** — home card currently shows hardcoded `'19'`/`'42'` (page.tsx:251–253).
+1. **Taxonomy simplification** (memory: `taxonomy_simplification_deferred.md`) — replace legacy mixed taxonomy + dual ATO columns with two ATO-aligned trees (Personal + Business). Unblocked now that v0.2.0 data exists for validation.
+2. **Persist filter selections** (memory: `persist_filter_selections.md`) — remember filters on Spending (and other filter-heavy pages) across reloads. localStorage first, DB later.
+3. **Enable `/financials/duplicates`** — NavCard exists on home as "Coming soon"; route not built.
+4. **Server-compute Category Manager stats** — home card currently shows hardcoded values (see home `page.tsx` around the Category Manager NavCard).
 
 ## Deferred
 
@@ -32,7 +31,6 @@ Core personal/business financial tracking — accounts, transactions, categoriza
 ## Gaps / rough edges
 
 - `/financials/duplicates` linked from home but disabled — either build or remove the NavCard
-- `recovery/financials-merge` is inherently cross-domain (financials + tasks + scan) — grandfathered under the single-domain rule; don't retroactively split
 
 ## Related memory
 

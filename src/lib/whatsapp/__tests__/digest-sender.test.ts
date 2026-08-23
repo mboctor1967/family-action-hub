@@ -25,7 +25,7 @@ describe('sendDigest', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
   const items = [
-    { id: 'uuid-abc', subject: 'Bill', fromName: 'AGL', fromAddress: 'a@b', gmailMessageId: 'abc' },
+    { id: 'uuid-abc', subject: 'Bill', fromName: 'AGL', fromAddress: 'a@b', gmailMessageId: 'abc', date: new Date('2026-04-22T01:00:00Z') },
   ]
 
   it('expires previous snapshot, sends message, persists new snapshot', async () => {
@@ -59,7 +59,7 @@ describe('sendDigest', () => {
 
   it('sends top-20 with overflow footer when >20 items', async () => {
     const many = Array.from({ length: 25 }, (_, i) => ({
-      id: `uuid-${i}`, subject: `Item ${i}`, fromName: null, fromAddress: 'x@y', gmailMessageId: `gmail-${i}`,
+      id: `uuid-${i}`, subject: `Item ${i}`, fromName: null, fromAddress: 'x@y', gmailMessageId: `gmail-${i}`, date: null,
     }))
     await sendDigest({ recipient: '+61412408587', items: many, dateLabel: '2026-04-22', stats: { ...STATS, actionableCount: 25 } })
     const sendArgs = (vi.mocked(sendMessage)).mock.calls[0][0] as Record<string, unknown>

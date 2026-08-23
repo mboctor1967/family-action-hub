@@ -10,16 +10,16 @@ Gmail inbox scanning + AI classification (actionable / informational / noise) + 
 - APIs: `POST /api/scan` (SSE stream), `GET/POST /api/scan/triage`, `POST /api/scan/triage/batch`, `POST /api/cron/digest` (v0.4.0)
 - Helpers: `src/lib/scan/triage-actions.ts` (`confirmEmailAsTask`, `rejectEmail` — shared between single, batch, and WhatsApp-reply routes)
 - **v0.4.0** (2026-04-20) — `runScanForAccount()` extracted from the SSE route (`src/lib/scan/run-scan.ts`) so the cron can invoke fresh scans; `src/lib/scan/priority-score.ts` ranks actionable emails for the digest.
+- **v0.2.1** (2026-04-18) — **Triage simplification** — one checkbox per row + single commit button → `POST /api/scan/triage/batch` → redirect to `/tasks?new=<ids>`. Extracted `confirmEmailAsTask` + `rejectEmail` helpers. Known limit: neon-http driver doesn't support transactions, so atomic rollback is sequential-best-effort.
 
 ## In-flight
 
-- **`feat/triage-simplification` branch** — simplified triage UI: one checkbox per row + one commit button → batch endpoint → redirect to `/tasks?new=<ids>`. 6/6 vitest tests passing. Smoke test passed. Ready for T9 release gate. **Known limit:** neon-http driver doesn't support transactions, so AC6 (atomic rollback) is sequential-best-effort instead of transactional.
+- None.
 
 ## Queued (next)
 
-1. **Ship the triage simplification merge** — needs version bump + CHANGELOG + deploy (see `tasks.md` — this merge is cross-domain, grandfathered).
-2. **Scan status banner on home** — home has no indicator when a scan is running in the background.
-3. **Scheduled scan cron (user-facing)** — currently only the digest cron runs nightly (20:00 UTC). A separate user-triggered scheduled scan could fire at different intervals.
+1. **Scan status banner on home** — home has no indicator when a scan is running in the background.
+2. **Scheduled scan cron (user-facing)** — currently only the digest cron runs nightly (20:00 UTC). A separate user-triggered scheduled scan could fire at different intervals.
 
 ## Deferred
 
@@ -33,4 +33,4 @@ Gmail inbox scanning + AI classification (actionable / informational / noise) + 
 
 ## Related memory
 
-- `feedback_scan_debug_messages.md`, `whatsapp_daily_digest_queued.md`
+- `feedback_scan_debug_messages.md`, `whatsapp_daily_digest_shipped.md`

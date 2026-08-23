@@ -52,3 +52,15 @@ next-env.d.ts
 # transient outputs
 scripts/reports/
 docs/superpowers/
+
+# added by backup script
+node_modules/
+.next/
+dist/
+.turbo/
+.cache/
+.env
+.env.*
+!.env.example
+*.log
+Thumbs.db
