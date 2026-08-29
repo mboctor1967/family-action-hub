@@ -49,12 +49,18 @@ Ships the four-branch stack `schema/scan-health-fields` → `fix/scan/fail-loud`
 - **Known unverified at deploy time:** TC-014 (Settings card renders *Needs attention* with the remedy) — the automated half of AC-012 passes, the visual half was not checked. TC-015 (`maxDuration` on a real recovery run) cannot be exercised until the OAuth secret is rotated.
 - **Does not fix the outage.** The Gmail scan stays dead until the operator mints a new Google OAuth client secret, updates `GOOGLE_CLIENT_SECRET` in Vercel and `.env.local`, and reconnects Gmail in Settings. What changes is that the *next* failure is reported within a day.
 
+**Deploy result:** `dpl_EWKztq7xEdozPGetJYLxKMSxw1VQ` — state READY, target production, commit `651d01f`, region `iad1`, aliased to `family-action-hub.vercel.app`. Tag `v0.4.2` pushed.
+
 **Smoke tests**
 
-1. Site boots — `/login` renders.
-2. `/api/cron/digest` returns 401 without a bearer token.
-3. `/settings` Gmail card shows **Needs attention**, "Last successful scan: 119 days ago", the `invalid_client` remedy and a Reconnect button. *(This is TC-014.)*
-4. `npm run scan:health` reports `[NEEDS ATTENTION]` for `mboctor@gmail.com`.
+| # | Test | Result |
+|---|---|---|
+| 1 | Site boots — `/login` renders | **PASS** — HTTP 200 |
+| 2 | `/api/cron/digest` returns 401 without a bearer token | **PASS** — 401 `{"error":"unauthorized"}` |
+| 3 | `/settings` Gmail card shows **Needs attention** + remedy + Reconnect *(TC-014)* | **NOT RUN** — requires a signed-in session |
+| 4 | `npm run scan:health` reports `[NEEDS ATTENTION]` | **PASS** — run locally against the shared database |
+
+**What happens on the next cron run (~03:01 UTC):** for the first time the scan failure will be reported rather than hidden. Expect a WhatsApp alert naming `invalid_client`, and **no digest**. That is the feature working as designed, not a new fault.
 
 ### Background — the 2026-05 → 2026-08 outage
 
