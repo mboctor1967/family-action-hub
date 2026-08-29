@@ -5,8 +5,15 @@ import { and, eq } from 'drizzle-orm'
 import { runScanForAccount, type ScanResult } from '@/lib/scan/run-scan'
 import { scoreEmail } from '@/lib/scan/priority-score'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
+import { sendOpsAlert, type ScanFailureReport } from '@/lib/whatsapp/ops-alert'
+import { classifyScanError } from '@/lib/scan/scan-errors'
 import type { DigestStats } from '@/lib/whatsapp/digest-format'
 import { APP_LOCALE, APP_TIMEZONE } from '@/lib/constants'
+
+// The scan runs inline in this request: a recovery run after an outage fetches up
+// to 100 emails and classifies them in batches. Without this the first successful
+// run after a long gap is the one most likely to be cut off. See DEC-5 / AC-013.
+export const maxDuration = 300
 
 // Vercel Cron invokes scheduled paths via GET, injecting `Authorization: Bearer $CRON_SECRET`.
 // The WhatsApp "scan" command also hits this endpoint with the same auth header — see webhook/route.ts.
@@ -30,18 +37,46 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Run one fresh scan per Gmail account (recipients share the scanned mailbox).
   const accounts = await db.select().from(gmailAccounts)
   const scanResults: ScanResult[] = []
-  let scanErrors = 0
+  const failures: ScanFailureReport[] = []
   for (const account of accounts) {
     try {
       const result = await runScanForAccount(account.id)
       scanResults.push(result)
     } catch (err) {
-      console.error('[cron/digest] scan failed for account', account.id, err)
-      scanErrors++
+      const classified = classifyScanError(err)
+      console.error(`[cron/digest] scan failed for account ${account.id} (${classified.code})`, err)
+      failures.push({
+        email: account.email,
+        errorCode: classified.code,
+        errorMessage: classified.message,
+        // Read before the scan wrote its error fields, so this is the genuine
+        // last-success timestamp rather than this run's failure time.
+        lastSuccessfulScan: account.lastScanAt,
+      })
     }
   }
-  // Scan failure is non-fatal — continue with existing DB state so a stale
-  // access token doesn't block the digest entirely. The failure is logged.
+  const scanErrors = failures.length
+
+  // A failed scan must never produce a normal-looking digest. For four months the
+  // digest kept arriving off four-month-old data, which is precisely why nobody
+  // noticed the scan was dead: an empty digest is indistinguishable from a quiet
+  // inbox. When nothing scanned, send nothing and tell the operator instead.
+  const allAccountsFailed = accounts.length > 0 && scanResults.length === 0
+
+  if (failures.length > 0) {
+    await sendOpsAlert(failures)
+  }
+
+  if (allAccountsFailed) {
+    return NextResponse.json({
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      scanErrors,
+      suppressed: true,
+      reason: 'scan failed for every account — digest suppressed',
+    })
+  }
 
   // Fetch actionable + unreviewed emails across all accounts.
   const items = await db
@@ -87,8 +122,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   })
   const dateLabel = dateFmt.format(new Date())
 
-  // Aggregate counts across all Gmail accounts scanned this run. When every account's
-  // scan errored we still send (non-fatal), but flag the stats as partial.
+  // Aggregate counts across the accounts that scanned successfully. The
+  // every-account-failed case has already returned above, so reaching here means
+  // at least one scan succeeded; `scanFailed` now denotes a PARTIAL failure.
   const totalEmails = scanResults.reduce((s, r) => s + r.totalEmails, 0)
   const newEmails = scanResults.reduce((s, r) => s + r.newEmails, 0)
   const alreadyScanned = scanResults.reduce((s, r) => s + r.alreadyScanned, 0)
@@ -112,7 +148,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     newEmails,
     alreadyScanned,
     actionableCount: scored.length,
-    scanFailed: accounts.length > 0 && scanResults.length === 0,
+    scanFailed: failures.length > 0,
   }
 
   let sent = 0
@@ -139,5 +175,5 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ sent, failed, skipped: 0, scanErrors })
+  return NextResponse.json({ sent, failed, skipped: 0, scanErrors, suppressed: false })
 }

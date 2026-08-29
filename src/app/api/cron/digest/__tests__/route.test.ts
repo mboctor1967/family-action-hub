@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/scan/run-scan', () => ({ runScanForAccount: vi.fn() }))
 vi.mock('@/lib/whatsapp/digest-sender', () => ({ sendDigest: vi.fn() }))
+vi.mock('@/lib/whatsapp/ops-alert', () => ({ sendOpsAlert: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/scan/priority-score', () => ({
   scoreEmail: vi.fn().mockImplementation((e: any) => (e?.subject?.includes('due') ? 5 : 1)),
 }))
@@ -11,6 +12,7 @@ vi.mock('@/lib/scan/priority-score', () => ({
 import { GET } from '../route'
 import { runScanForAccount } from '@/lib/scan/run-scan'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
+import { sendOpsAlert } from '@/lib/whatsapp/ops-alert'
 import { db } from '@/lib/db'
 
 function makeReq(headers: Record<string, string>) {
@@ -103,24 +105,106 @@ describe('GET /api/cron/digest', () => {
     expect(sendDigest).toHaveBeenCalled()
   })
 
-  it('scan failure is non-fatal — digest still sends from existing DB state', async () => {
-    ;(runScanForAccount as any).mockRejectedValue(new Error('scan boom'))
-
-    // Mock db.select(): plain call returns gmailAccounts list; field-select returns emails
+  /**
+   * Replaces an earlier test that asserted "scan failure is non-fatal — digest
+   * still sends from existing DB state". That behaviour was the bug: for four
+   * months the digest kept arriving, built from stale data, while nothing had
+   * been scanned. A digest that cannot be trusted must not be sent. See DEC-2.
+   */
+  it('TC-018 — all accounts failed: sends no digest and exactly one ops alert', async () => {
+    ;(runScanForAccount as any).mockRejectedValue(
+      Object.assign(new Error('invalid_client'), {
+        response: { status: 401, data: { error: 'invalid_client' } },
+      }),
+    )
     ;(db as any).select = vi.fn((fields?: any) => {
       if (fields) {
         return { from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) }
       }
-      return { from: vi.fn().mockResolvedValue([{ id: 'acc-1' }]) }
+      return {
+        from: vi.fn().mockResolvedValue([
+          { id: 'acc-1', email: 'mboctor@gmail.com', lastScanAt: new Date('2026-05-02T03:01:10Z') },
+        ]),
+      }
     })
 
     const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
-    expect(res.status).toBe(200)
     const data = await res.json()
-    // Digest proceeds even though scan failed; sent to both recipients (with empty items).
+
+    expect(res.status).toBe(200)
+    expect(sendDigest).not.toHaveBeenCalled()
+    expect(data.sent).toBe(0)
+    expect(data.suppressed).toBe(true)
+    expect(data.scanErrors).toBe(1)
+
+    // AC-011: exactly one alert, and sendOpsAlert itself targets the ops number only.
+    expect(sendOpsAlert).toHaveBeenCalledTimes(1)
+    const reports = (sendOpsAlert as any).mock.calls[0][0]
+    expect(reports).toHaveLength(1)
+    expect(reports[0]).toMatchObject({ email: 'mboctor@gmail.com', errorCode: 'invalid_client' })
+    expect(reports[0].lastSuccessfulScan).toEqual(new Date('2026-05-02T03:01:10Z'))
+  })
+
+  it('TC-019 — a successful scan still sends the digest to every recipient', async () => {
+    ;(db as any).select = vi.fn((fields?: any) => {
+      if (fields) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([
+              {
+                id: 'e1',
+                messageId: 'm1',
+                subject: 'Bill due',
+                fromName: 'AGL',
+                fromAddress: 'a@b',
+                date: new Date(),
+                rawSnippet: '$240',
+              },
+            ]),
+          }),
+        }
+      }
+      return { from: vi.fn().mockResolvedValue([{ id: 'acc-1', email: 'a@b.com', lastScanAt: new Date() }]) }
+    })
+
+    const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
+    const data = await res.json()
+
     expect(data.sent).toBe(2)
-    expect(data.failed).toBe(0)
+    expect(data.suppressed).toBe(false)
     expect(sendDigest).toHaveBeenCalledTimes(2)
+    expect(sendOpsAlert).not.toHaveBeenCalled()
+  })
+
+  it('partial failure: still sends the digest but also alerts the operator', async () => {
+    // One account works, one does not — the working account's mail is still worth
+    // sending, and the broken one still needs to be reported.
+    ;(runScanForAccount as any)
+      .mockResolvedValueOnce({
+        scanRunId: 'r1', actionable: 1, informational: 0, noise: 0, skipped: 0,
+        totalEmails: 5, newEmails: 2, alreadyScanned: 3,
+        windowFrom: new Date('2026-08-22T00:00:00Z'), windowTo: new Date('2026-08-29T00:00:00Z'),
+      })
+      .mockRejectedValueOnce(new Error('invalid_grant'))
+    ;(db as any).select = vi.fn((fields?: any) => {
+      if (fields) {
+        return { from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) }
+      }
+      return {
+        from: vi.fn().mockResolvedValue([
+          { id: 'acc-1', email: 'ok@gmail.com', lastScanAt: new Date() },
+          { id: 'acc-2', email: 'broken@gmail.com', lastScanAt: null },
+        ]),
+      }
+    })
+
+    const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
+    const data = await res.json()
+
+    expect(data.suppressed).toBe(false)
+    expect(sendDigest).toHaveBeenCalledTimes(2)
+    expect(sendOpsAlert).toHaveBeenCalledTimes(1)
+    expect((sendOpsAlert as any).mock.calls[0][0][0].email).toBe('broken@gmail.com')
   })
 
   it('returns 200 with skipped=1 when no recipients configured', async () => {
