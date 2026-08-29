@@ -183,14 +183,14 @@ Covers: AC-012
 
 ### Wave 3 — `feat/settings/gmail-health` (Settings domain)
 
-- [ ] **T-7** [S] — Extend `GET /api/settings/gmail-accounts` with the health fields · owns `src/app/api/settings/gmail-accounts/route.ts` · satisfies AC-012 · test: TC-013
-- [ ] **T-8** [M] — Gmail card shows a state badge, last successful scan (relative), and the error + remedy when present · owns `src/app/(dashboard)/settings/page.tsx` · satisfies AC-012 · test: TC-014
+- [x] **T-7** [S] — Extend `GET /api/settings/gmail-accounts` with the health fields · owns `src/app/api/settings/gmail-accounts/route.ts` · satisfies AC-012 · test: TC-013
+- [x] **T-8** [M] — Gmail card shows a state badge, last successful scan (relative), and the error + remedy when present · owns `src/app/(dashboard)/settings/page.tsx` · satisfies AC-012 · test: TC-014
 
 ### Wave 4 — `fix/whatsapp/digest-fail-loud` (WhatsApp — separate worktree, port 3001)
 
-- [ ] **T-9** [S] — `export const maxDuration = 300` on the digest route · owns `src/app/api/cron/digest/route.ts` · satisfies AC-013 · test: TC-015
-- [ ] **T-10** [M] — Ops alert formatter + `WHATSAPP_OPS_NUMBER` resolution with allowlist fallback · owns `src/lib/whatsapp/ops-alert.ts` · satisfies AC-010, AC-011 · test: TC-016, TC-017
-- [ ] **T-11** [M] — Digest route: when all accounts fail, suppress every digest send and emit exactly one ops alert · owns `src/app/api/cron/digest/route.ts` · satisfies AC-009, AC-010, AC-011 · test: TC-018, TC-019
+- [x] **T-9** [S] — `export const maxDuration = 300` on the digest route · owns `src/app/api/cron/digest/route.ts` · satisfies AC-013 · test: TC-015
+- [x] **T-10** [M] — Ops alert formatter + `WHATSAPP_OPS_NUMBER` resolution with allowlist fallback · owns `src/lib/whatsapp/ops-alert.ts` · satisfies AC-010, AC-011 · test: TC-016, TC-017
+- [x] **T-11** [M] — Digest route: when all accounts fail, suppress every digest send and emit exactly one ops alert · owns `src/app/api/cron/digest/route.ts` · satisfies AC-009, AC-010, AC-011 · test: TC-018, TC-019
 
 ## Test cases
 
@@ -206,13 +206,13 @@ Covers: AC-012
 - **TC-010** [AUTO] **PASS** — AC-008 — a 429 is retried 3× with backoff, then succeeds — same file
 - **TC-011** [AUTO] **PASS** — AC-008 — three consecutive failures propagate the error — same file
 - **TC-012** [MANUAL] — AC-014/015 — **PASS 2026-08-29** — backfill marked exactly 159 rows `failed` (tally now 159 failed / 30 completed); `npm run scan:health` renders account health, run history and ingest.
-- **TC-013** [AUTO] — AC-012 — the accounts endpoint returns the health fields — `src/app/api/settings/__tests__/gmail-accounts.test.ts`
+- **TC-013** [AUTO] **PASS** — AC-012 — the accounts endpoint returns the health fields — `src/app/api/settings/__tests__/gmail-accounts.test.ts`
 - **TC-014** [MANUAL] — AC-012 — Settings on localhost:3000 shows "Needs attention" plus the `invalid_client` remedy before the secret is fixed, and "Healthy" after.
 - **TC-015** [MANUAL] — AC-013 — confirm `maxDuration` is exported and the recovery run completes inside it.
-- **TC-016** [AUTO] — AC-010 — the alert body names the error code, account email and last successful scan date — `src/lib/whatsapp/__tests__/ops-alert.test.ts`
-- **TC-017** [AUTO] — AC-010 — an unset `WHATSAPP_OPS_NUMBER` falls back to the first allowlist entry — same file
-- **TC-018** [AUTO] — AC-009/011 — all-accounts-failed sends zero digests and exactly one alert, to the ops number only — `src/app/api/cron/digest/__tests__/route.test.ts`
-- **TC-019** [AUTO] — AC-009 — a successful scan still sends digests to every allowlisted recipient (regression) — same file
+- **TC-016** [AUTO] **PASS** — AC-010 — the alert body names the error code, account email and last successful scan date — `src/lib/whatsapp/__tests__/ops-alert.test.ts`
+- **TC-017** [AUTO] **PASS** — AC-010 — an unset `WHATSAPP_OPS_NUMBER` falls back to the first allowlist entry — same file
+- **TC-018** [AUTO] **PASS** — AC-009/011 — all-accounts-failed sends zero digests and exactly one alert, to the ops number only — `src/app/api/cron/digest/__tests__/route.test.ts`
+- **TC-019** [AUTO] **PASS** — AC-009 — a successful scan still sends digests to every allowlisted recipient (regression) — same file
 
 ## Wave 2 outcomes (2026-08-29)
 
@@ -224,6 +224,15 @@ Two deviations from the brief, both deliberate:
 2. **Health is not derived from `last_error_code` alone.** The first `scan:health` run reported the account `[HEALTHY]` despite 119 days without a successful scan — because no failure had ever been *recorded*, so the error columns were null. Health is now `no error code AND last success within 48h`. The same rule must be used by the Settings card in T-8.
 
 Known limit: a throw *before* the `scan_runs` row is inserted (account row missing, or the insert itself failing) records nothing on the account. The digest route still counts it as a scan error, so it is not silent, but the account-level error fields stay unset.
+
+## Wave 3 + 4 outcomes (2026-08-29)
+
+**157 tests passing** (63 new across the feature). `tsc --noEmit` clean. Lint clean on every file added or modified.
+
+- **Wave 3** — health is derived server-side in the API so the Settings card, the API and `npm run scan:health` cannot drift on what "healthy" means. The card previously hardcoded a green "Connected" badge, which is what it displayed throughout the outage.
+- **Wave 4** — an existing test, `"scan failure is non-fatal - digest still sends from existing DB state"`, asserted the buggy behaviour and was deliberately replaced by TC-018. Partial failure (some accounts scan, some do not) still sends the digest and still alerts; only total failure suppresses. `DigestStats.scanFailed` now means *partial* failure, since the all-failed branch returns before it is read.
+
+**Branch deviation:** the brief routed Wave 4 to the `family-action-hub-whatsapp` worktree on `feat/whatsapp-bot`, per `docs/domains/_README.md`. That branch is **38 commits behind master and predates the digest entirely** — it contains no `cron/digest` route and none of the `digest-*` libraries (it is a `backup: snapshot` commit from 2026-08-25). Building there would have forked from a base missing the feature under repair. Wave 4 was built in the main repo on `fix/whatsapp/digest-fail-loud` instead. The worktree branch and the `_README.md` routing rule both need a decision separately.
 
 ## Cross-domain impact
 
