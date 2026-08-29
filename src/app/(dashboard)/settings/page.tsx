@@ -6,10 +6,21 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
-import { Mail, CheckCircle2, Plus, Scan, ArrowRight } from 'lucide-react'
+import { Mail, CheckCircle2, Plus, Scan, ArrowRight, AlertTriangle, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { AiCostPanel } from '@/components/settings/ai-cost-panel'
+
+/** Relative age of the last successful scan — "never" is a first-class answer. */
+function formatLastScan(value: string | null): string {
+  if (!value) return 'never'
+  const ms = Date.now() - new Date(value).getTime()
+  const hours = Math.floor(ms / 3_600_000)
+  if (hours < 1) return 'less than an hour ago'
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -63,18 +74,53 @@ export default function SettingsPage() {
           <CardDescription>Connect Gmail accounts to scan for actionable emails</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {gmailAccounts.map((account: any) => (
-            <div key={account.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{account.email}</span>
+          {gmailAccounts.map((account: any) => {
+            const needsAttention = account.health === 'needs_attention'
+            return (
+              <div
+                key={account.id}
+                className={`p-3 rounded-lg space-y-2 ${
+                  needsAttention ? 'bg-amber-50 border border-amber-200' : 'bg-muted/50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{account.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {needsAttention ? (
+                      <>
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <span className="text-xs font-medium text-amber-700">Needs attention</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span className="text-xs text-muted-foreground">Healthy</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* The signal that actually matters: when a scan last SUCCEEDED. */}
+                <p className="text-xs text-muted-foreground">
+                  Last successful scan: {formatLastScan(account.lastScanAt)}
+                </p>
+
+                {needsAttention && account.healthReason && (
+                  <p className="text-xs text-amber-800 leading-relaxed">{account.healthReason}</p>
+                )}
+
+                {needsAttention && (
+                  <Button onClick={connectGmail} variant="outline" size="sm" className="w-full">
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    Reconnect Gmail
+                  </Button>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <span className="text-xs text-muted-foreground">Connected</span>
-              </div>
-            </div>
-          ))}
+            )
+          })}
 
           {gmailAccounts.length === 0 && (
             <p className="text-sm text-muted-foreground">No Gmail accounts connected yet.</p>
