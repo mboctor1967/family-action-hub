@@ -2,8 +2,8 @@
 Feature: Scan reliability — fail loud on Gmail scan failure
 Date: 2026-08-29
 Tier: HIGH (score 8)
-Status: IN PROGRESS
-Target release: v0.5.0
+Status: SHIPPED
+Target release: v0.4.2 (user override — patch chosen over the recommended minor)
 App version at last update: v0.4.1
 ---
 
@@ -251,12 +251,25 @@ Implementation and unit tests do not depend on this. TC-012, TC-014 and TC-015 d
 
 ### User-facing
 
-- (filled at release)
+Your daily email digest stopped working on 2 May 2026 and kept pretending it hadn't. The digest still arrived every morning, but it was built from months-old data, so an empty one looked exactly like a quiet inbox. The cause was an expired Google credential; the reason it lasted four months is that nothing ever told you.
+
+From this release the hub is honest about it. If the scan fails, you get a WhatsApp message that morning naming what broke and how to fix it — and no digest, because a digest you cannot trust is worse than none. Settings now shows whether Gmail is genuinely healthy and when a scan last actually succeeded, instead of a permanent green "Connected". `npm run scan:health` answers the same question from the terminal.
+
+Nobody else in the family sees any of this: failure alerts go to you alone.
 
 ### QA
 
-- (filled at release)
+- **Automated:** 157 passing, 63 new. TC-002–TC-011 (scan taxonomy, failure recording, reactive 401 refresh, classification integrity and retry), TC-013 (health API), TC-016–TC-019 (ops alert and digest suppression).
+- **Manual passed:** TC-001 (columns live in Neon), TC-012 (backfill resolved 159 rows; `scan:health` output correct).
+- **Manual outstanding:** TC-014 (Settings card shows *Needs attention* + remedy) — blocked on a signed-in browser session. TC-015 (`maxDuration` honoured on a real recovery run) — cannot be exercised until the OAuth secret is rotated.
+- **Regression areas:** the digest happy path (TC-019 guards it), the SSE scan route (shares `runScanForAccount`, whose signature is unchanged), and `/api/settings/gmail-accounts` consumers.
+- **Edge cases worth watching:** partial failure across multiple Gmail accounts (only one account exists today); an alert send that itself fails (swallowed by design, so the Settings card is the backstop); a throw before the `scan_runs` row is inserted, which records nothing on the account.
 
 ### Technical
 
-- (filled at release)
+- **Schema:** four nullable columns, already applied to the shared Neon database — local and production point at the same instance, so no separate production migration step remains.
+- **New env var:** `WHATSAPP_OPS_NUMBER` (optional; falls back to the first entry of `WHATSAPP_ALLOWED_NUMBERS`).
+- **New modules:** `src/lib/scan/scan-errors.ts`, `src/lib/whatsapp/ops-alert.ts`, `scripts/scan-health.ts`, `scripts/backfill-abandoned-runs.ts`, `scripts/apply-scan-health-fields.ts`.
+- **Behaviour changes callers should know about:** `classifyEmails` now throws on unparseable model output instead of resolving with defaults; `runScanForAccount` still rethrows but now records first; `DigestStats.scanFailed` means *partial* failure; the digest route returns a new `suppressed` boolean.
+- **Rollback:** `git revert` the four commits. The added columns are nullable and unread by the prior code, so they can be left in place; no migration rollback is required.
+- **Not addressed:** rotating the OAuth secret (operator action, and the outage persists until it is done); the queue/worker split (deferred — the timeout theory was investigated and disproved); the stale `feat/whatsapp-bot` worktree branch; the Next.js `middleware` → `proxy` deprecation warning.
