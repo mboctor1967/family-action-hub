@@ -36,7 +36,10 @@ export const gmailAccounts = pgTable('gmail_accounts', {
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
   tokenExpiry: timestamp('token_expiry'),
-  lastScanAt: timestamp('last_scan_at'),
+  lastScanAt: timestamp('last_scan_at'), // last SUCCESSFUL scan — never set on failure
+  lastError: text('last_error'), // human-readable failure message; cleared on success
+  lastErrorCode: text('last_error_code'), // invalid_client | invalid_grant | transient | unknown
+  lastErrorAt: timestamp('last_error_at'),
   scanConfig: jsonb('scan_config').default({ frequency: 'manual', window: 'since_last' }),
   createdAt: timestamp('created_at').defaultNow(),
 })
@@ -156,6 +159,7 @@ export const scanRuns = pgTable('scan_runs', {
   informationalCount: integer('informational_count').default(0),
   noiseCount: integer('noise_count').default(0),
   status: text('status').default('running'), // running, completed, failed
+  errorMessage: text('error_message'), // populated when status = 'failed'
 })
 
 // Auth.js required tables (must use snake_case property names for adapter compatibility)
