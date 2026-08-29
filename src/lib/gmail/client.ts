@@ -10,7 +10,7 @@ interface TokenInfo {
  * Creates a Gmail client with automatic token refresh.
  * Returns the client and a potentially refreshed access token.
  */
-export async function createGmailClient(token: TokenInfo): Promise<{
+export async function createGmailClient(token: TokenInfo, forceRefresh = false): Promise<{
   gmail: ReturnType<typeof google.gmail>
   newAccessToken?: string
 }> {
@@ -24,18 +24,26 @@ export async function createGmailClient(token: TokenInfo): Promise<{
     refresh_token: token.refreshToken || undefined,
   })
 
-  // Check if token is expired or about to expire (within 5 minutes)
+  // Check if token is expired or about to expire (within 5 minutes).
+  // NOTE: this clock check alone is not sufficient — Google can invalidate a token
+  // out-of-band (secret rotated, grant revoked) while it still looks fresh here.
+  // `fetchEmails` therefore also refreshes reactively on a 401. See AC-006.
   const isExpired = token.tokenExpiry && new Date(token.tokenExpiry).getTime() < Date.now() + 5 * 60 * 1000
   let newAccessToken: string | undefined
 
-  if (isExpired && token.refreshToken) {
+  if ((forceRefresh || isExpired) && token.refreshToken) {
     try {
       const { credentials } = await oauth2.refreshAccessToken()
       oauth2.setCredentials(credentials)
       newAccessToken = credentials.access_token || undefined
     } catch (err) {
-      console.error('Failed to refresh token:', err)
-      throw new Error('Gmail token expired and refresh failed. Please reconnect your Gmail account in Settings.')
+      // Rethrow the ORIGINAL error. It carries response.data.error
+      // (invalid_client / invalid_grant), which the scan error taxonomy needs to
+      // tell the operator which remedy actually applies. Replacing it with a
+      // generic "please reconnect" message sent the operator down a dead end for
+      // four months in 2026.
+      console.error('Failed to refresh Gmail token:', err)
+      throw err
     }
   }
 
@@ -43,6 +51,12 @@ export async function createGmailClient(token: TokenInfo): Promise<{
     gmail: google.gmail({ version: 'v1', auth: oauth2 }),
     newAccessToken,
   }
+}
+
+/** True for an auth rejection that a fresh access token might resolve. */
+function isUnauthorized(err: unknown): boolean {
+  const e = (err ?? {}) as { response?: { status?: number }; status?: number }
+  return (e.response?.status ?? e.status) === 401
 }
 
 export interface EmailMetadata {
@@ -64,13 +78,25 @@ export async function fetchEmails(
   query: string,
   maxResults: number = 50
 ): Promise<{ emails: EmailMetadata[]; newAccessToken?: string }> {
-  const { gmail, newAccessToken } = await createGmailClient(token)
+  let { gmail, newAccessToken } = await createGmailClient(token)
 
-  const listResponse = await gmail.users.messages.list({
-    userId: 'me',
-    q: query,
-    maxResults,
-  })
+  const listMessages = () =>
+    gmail.users.messages.list({ userId: 'me', q: query, maxResults })
+
+  let listResponse
+  try {
+    listResponse = await listMessages()
+  } catch (err) {
+    // Reactive refresh: the token passed the clock check but Google rejected it.
+    // Exactly one retry — a second 401 means the credential is genuinely dead and
+    // must surface rather than loop.
+    if (!isUnauthorized(err) || !token.refreshToken) throw err
+
+    const refreshed = await createGmailClient(token, true)
+    gmail = refreshed.gmail
+    newAccessToken = refreshed.newAccessToken ?? newAccessToken
+    listResponse = await listMessages()
+  }
 
   const messages = listResponse.data.messages || []
 

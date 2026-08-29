@@ -4,6 +4,7 @@ import { eq, and, inArray } from 'drizzle-orm'
 import { fetchEmails, preFilterEmails } from '@/lib/gmail/client'
 import { classifyEmails, type EmailInput } from '@/lib/ai/classify'
 import { buildClassificationPrompt } from '@/lib/ai/build-prompt'
+import { classifyScanError } from '@/lib/scan/scan-errors'
 
 /** Progress events — same shape as the SSE `send('progress', ...)` / `send('done', ...)` payloads */
 export type ScanProgressEvent =
@@ -38,16 +39,15 @@ export type RunScanOptions = {
   userId?: string
 }
 
+type SendFn = (event: 'progress' | 'done' | 'error', data: Record<string, unknown>) => void
+
+type AccountRow = typeof gmailAccounts.$inferSelect
+
 export async function runScanForAccount(
   gmailAccountId: string,
   opts: RunScanOptions = {},
 ): Promise<ScanResult> {
-  const {
-    onProgress = () => {},
-    scanWindow = '7d',
-    forceRescan = false,
-    maxEmails = 100,
-  } = opts
+  const { onProgress = () => {} } = opts
 
   function send(event: 'progress' | 'done' | 'error', data: Record<string, unknown>) {
     onProgress({ event, data } as ScanProgressEvent)
@@ -68,6 +68,74 @@ export async function runScanForAccount(
     gmailAccountId: account.id,
     status: 'running',
   }).returning()
+
+  // Every exit below is recorded. A run must never be left at 'running' — that is
+  // precisely how 159 consecutive failures went unnoticed between 2026-05 and 2026-08.
+  try {
+    const result = await executeScan(account, scanRun.id, opts, send)
+    await markScanSuccess(account.id)
+    return result
+  } catch (err) {
+    await markScanFailure(account.id, scanRun.id, err, send)
+    throw err
+  }
+}
+
+/** Clears the error fields and advances the last-successful-scan marker. */
+async function markScanSuccess(accountId: string): Promise<void> {
+  await db.update(gmailAccounts).set({
+    lastScanAt: new Date(),
+    lastError: null,
+    lastErrorCode: null,
+    lastErrorAt: null,
+  }).where(eq(gmailAccounts.id, accountId))
+}
+
+/**
+ * Records the failure on both the run and the account, then leaves rethrowing to
+ * the caller. Best-effort: if the database write itself fails we must not mask the
+ * original error, which is the more useful one.
+ */
+async function markScanFailure(
+  accountId: string,
+  scanRunId: string,
+  err: unknown,
+  send: SendFn,
+): Promise<void> {
+  const classified = classifyScanError(err)
+  const now = new Date()
+
+  try {
+    await db.update(scanRuns).set({
+      status: 'failed',
+      completedAt: now,
+      errorMessage: classified.message,
+    }).where(eq(scanRuns.id, scanRunId))
+
+    await db.update(gmailAccounts).set({
+      lastError: classified.message,
+      lastErrorCode: classified.code,
+      lastErrorAt: now,
+    }).where(eq(gmailAccounts.id, accountId))
+  } catch (recordErr) {
+    console.error('[run-scan] failed to record scan failure', recordErr)
+  }
+
+  console.error(`[run-scan] scan failed for account ${accountId} (${classified.code}): ${classified.message}`)
+  send('error', { error: classified.message })
+}
+
+async function executeScan(
+  account: AccountRow,
+  scanRunId: string,
+  opts: RunScanOptions,
+  send: SendFn,
+): Promise<ScanResult> {
+  const {
+    scanWindow = '7d',
+    forceRescan = false,
+    maxEmails = 100,
+  } = opts
 
   // Step 2: Fetch emails
   send('progress', { step: 2, total: 5, label: 'Fetching emails from Gmail...', percent: 15 })
@@ -129,10 +197,10 @@ export async function runScanForAccount(
       completedAt: new Date(),
       emailsScanned: 0,
       status: 'completed',
-    }).where(eq(scanRuns.id, scanRun.id))
+    }).where(eq(scanRuns.id, scanRunId))
 
     send('done', {
-      scanRunId: scanRun.id,
+      scanRunId,
       emailsScanned: 0,
       newEmails: 0,
       alreadyScanned: allEmails.length,
@@ -142,7 +210,7 @@ export async function runScanForAccount(
     })
 
     return {
-      scanRunId: scanRun.id,
+      scanRunId,
       actionable: 0,
       informational: 0,
       noise: 0,
@@ -252,12 +320,10 @@ export async function runScanForAccount(
     informationalCount,
     noiseCount: noiseCount + aiNoiseCount,
     status: 'completed',
-  }).where(eq(scanRuns.id, scanRun.id))
-
-  await db.update(gmailAccounts).set({ lastScanAt: new Date() }).where(eq(gmailAccounts.id, account.id))
+  }).where(eq(scanRuns.id, scanRunId))
 
   send('done', {
-    scanRunId: scanRun.id,
+    scanRunId,
     emailsScanned: newEmails.length,
     actionable: actionableCount,
     informational: informationalCount,
@@ -265,7 +331,7 @@ export async function runScanForAccount(
   })
 
   return {
-    scanRunId: scanRun.id,
+    scanRunId,
     actionable: actionableCount,
     informational: informationalCount,
     noise: noiseCount + aiNoiseCount,

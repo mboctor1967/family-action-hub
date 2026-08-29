@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "dedupe:scan": "tsx scripts/notion-dedupe.ts",
+    "scan:health": "tsx scripts/scan-health.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -175,11 +175,11 @@ Covers: AC-012
 
 ### Wave 2 — `fix/scan/fail-loud` (Scan domain)
 
-- [ ] **T-2** [M] — Error taxonomy helper mapping an OAuth/Gmail error to `{ code, message, remedy }` · owns `src/lib/scan/scan-errors.ts` · satisfies AC-004, AC-005 · test: TC-002, TC-003
-- [ ] **T-3** [M] — `run-scan.ts`: wrap the body after run-insert in try/catch — on throw, mark `scan_runs` failed with `error_message`, write the `gmail_accounts` error fields, then rethrow; on success clear those fields · owns `src/lib/scan/run-scan.ts` · satisfies AC-001, AC-002, AC-003 · test: TC-004, TC-005, TC-006
-- [ ] **T-4** [M] — `gmail/client.ts`: reactive refresh-and-retry once on a 401 from a Gmail call; classify refresh failures via T-2 instead of the current opaque throw · owns `src/lib/gmail/client.ts` · satisfies AC-004, AC-005, AC-006 · test: TC-007, TC-008
-- [ ] **T-5** [M] — `classify.ts`: remove the fabricated-`informational` fallback (throw instead); add 3-attempt backoff around `anthropic.messages.create`; raise concurrency to 3 · owns `src/lib/ai/classify.ts` · satisfies AC-007, AC-008, AC-013 · test: TC-009, TC-010, TC-011
-- [ ] **T-6** [S] — One-off cleanup for the 159 abandoned `running` rows; promote the diagnostic to `scripts/scan-health.ts` with an `npm run scan:health` alias · owns `scripts/scan-health.ts`, `scripts/backfill-abandoned-runs.ts`, `package.json` · satisfies AC-014, AC-015 · test: TC-012
+- [x] **T-2** [M] — Error taxonomy helper mapping an OAuth/Gmail error to `{ code, message, remedy }` · owns `src/lib/scan/scan-errors.ts` · satisfies AC-004, AC-005 · test: TC-002, TC-003
+- [x] **T-3** [M] — `run-scan.ts`: wrap the body after run-insert in try/catch — on throw, mark `scan_runs` failed with `error_message`, write the `gmail_accounts` error fields, then rethrow; on success clear those fields · owns `src/lib/scan/run-scan.ts` · satisfies AC-001, AC-002, AC-003 · test: TC-004, TC-005, TC-006
+- [x] **T-4** [M] — `gmail/client.ts`: reactive refresh-and-retry once on a 401 from a Gmail call; classify refresh failures via T-2 instead of the current opaque throw · owns `src/lib/gmail/client.ts` · satisfies AC-004, AC-005, AC-006 · test: TC-007, TC-008
+- [x] **T-5** [M] — `classify.ts`: remove the fabricated-`informational` fallback (throw instead); add 3-attempt backoff around `anthropic.messages.create`; raise concurrency to 3 · owns `src/lib/ai/classify.ts` · satisfies AC-007, AC-008, AC-013 · test: TC-009, TC-010, TC-011
+- [x] **T-6** [S] — One-off cleanup for the 159 abandoned `running` rows; promote the diagnostic to `scripts/scan-health.ts` with an `npm run scan:health` alias · owns `scripts/scan-health.ts`, `scripts/backfill-abandoned-runs.ts`, `package.json` · satisfies AC-014, AC-015 · test: TC-012
 
 ### Wave 3 — `feat/settings/gmail-health` (Settings domain)
 
@@ -195,17 +195,17 @@ Covers: AC-012
 ## Test cases
 
 - **TC-001** [MANUAL] — AC-001/002 — **PASS 2026-08-29** — applied via `scripts/apply-scan-health-fields.ts` (idempotent `ADD COLUMN IF NOT EXISTS`, chosen over `drizzle-kit push` to remove any chance of a destructive diff). All 4 columns confirmed present and nullable in Neon.
-- **TC-002** [AUTO] — AC-004 — an `invalid_client` OAuth error maps to code `invalid_client` with a "replace the secret" remedy — `src/lib/scan/__tests__/scan-errors.test.ts`
-- **TC-003** [AUTO] — AC-005 — `invalid_grant` maps to code `invalid_grant` with a "reconnect" remedy — same file
-- **TC-004** [AUTO] — AC-001 — a throwing scan marks its run `failed` with `error_message` — `src/lib/scan/__tests__/run-scan.test.ts`
-- **TC-005** [AUTO] — AC-002 — a throwing scan writes `last_error`, `last_error_code`, `last_error_at` — same file
-- **TC-006** [AUTO] — AC-003 — a successful scan clears the error fields and advances `last_scan_at` — same file
-- **TC-007** [AUTO] — AC-006 — a 401 on a Gmail call triggers exactly one refresh-and-retry — `src/lib/gmail/__tests__/client.test.ts`
-- **TC-008** [AUTO] — AC-006 — a second consecutive 401 surfaces the error rather than looping — same file
-- **TC-009** [AUTO] — AC-007 — unparseable AI output throws and writes zero `emails_scanned` rows — `src/lib/ai/__tests__/classify.test.ts`
-- **TC-010** [AUTO] — AC-008 — a 429 is retried 3× with backoff, then succeeds — same file
-- **TC-011** [AUTO] — AC-008 — three consecutive failures propagate the error — same file
-- **TC-012** [MANUAL] — AC-014/015 — run the backfill, confirm 159 rows flip to `failed`, run `npm run scan:health` and confirm the output.
+- **TC-002** [AUTO] **PASS** — AC-004 — an `invalid_client` OAuth error maps to code `invalid_client` with a "replace the secret" remedy — `src/lib/scan/__tests__/scan-errors.test.ts`
+- **TC-003** [AUTO] **PASS** — AC-005 — `invalid_grant` maps to code `invalid_grant` with a "reconnect" remedy — same file
+- **TC-004** [AUTO] **PASS** — AC-001 — a throwing scan marks its run `failed` with `error_message` — `src/lib/scan/__tests__/run-scan.test.ts`
+- **TC-005** [AUTO] **PASS** — AC-002 — a throwing scan writes `last_error`, `last_error_code`, `last_error_at` — same file
+- **TC-006** [AUTO] **PASS** — AC-003 — a successful scan clears the error fields and advances `last_scan_at` — same file
+- **TC-007** [AUTO] **PASS** — AC-006 — a 401 on a Gmail call triggers exactly one refresh-and-retry — `src/lib/gmail/__tests__/client.test.ts`
+- **TC-008** [AUTO] **PASS** — AC-006 — a second consecutive 401 surfaces the error rather than looping — same file
+- **TC-009** [AUTO] **PASS** — AC-007 — unparseable AI output throws and writes zero `emails_scanned` rows — `src/lib/ai/__tests__/classify.test.ts`
+- **TC-010** [AUTO] **PASS** — AC-008 — a 429 is retried 3× with backoff, then succeeds — same file
+- **TC-011** [AUTO] **PASS** — AC-008 — three consecutive failures propagate the error — same file
+- **TC-012** [MANUAL] — AC-014/015 — **PASS 2026-08-29** — backfill marked exactly 159 rows `failed` (tally now 159 failed / 30 completed); `npm run scan:health` renders account health, run history and ingest.
 - **TC-013** [AUTO] — AC-012 — the accounts endpoint returns the health fields — `src/app/api/settings/__tests__/gmail-accounts.test.ts`
 - **TC-014** [MANUAL] — AC-012 — Settings on localhost:3000 shows "Needs attention" plus the `invalid_client` remedy before the secret is fixed, and "Healthy" after.
 - **TC-015** [MANUAL] — AC-013 — confirm `maxDuration` is exported and the recovery run completes inside it.
@@ -213,6 +213,17 @@ Covers: AC-012
 - **TC-017** [AUTO] — AC-010 — an unset `WHATSAPP_OPS_NUMBER` falls back to the first allowlist entry — same file
 - **TC-018** [AUTO] — AC-009/011 — all-accounts-failed sends zero digests and exactly one alert, to the ops number only — `src/app/api/cron/digest/__tests__/route.test.ts`
 - **TC-019** [AUTO] — AC-009 — a successful scan still sends digests to every allowlisted recipient (regression) — same file
+
+## Wave 2 outcomes (2026-08-29)
+
+Test suite grew from 94 to **135 passing** (41 new). `tsc --noEmit` clean. Lint clean on every source file added or modified (the 4 remaining `no-explicit-any` errors in `gmail/client.ts` are pre-existing, in `fetchSingleEmail`, and untouched).
+
+Two deviations from the brief, both deliberate:
+
+1. **A run that finds no new emails now counts as a success** and advances `last_scan_at`. Previously that path updated `scan_runs` but never the account, so a stretch of quiet days would let "last successful scan" go stale and look identical to a broken scanner. AC-003's intent required this.
+2. **Health is not derived from `last_error_code` alone.** The first `scan:health` run reported the account `[HEALTHY]` despite 119 days without a successful scan — because no failure had ever been *recorded*, so the error columns were null. Health is now `no error code AND last success within 48h`. The same rule must be used by the Settings card in T-8.
+
+Known limit: a throw *before* the `scan_runs` row is inserted (account row missing, or the insert itself failing) records nothing on the account. The digest route still counts it as a scan error, so it is not silent, but the account-level error fields stay unset.
 
 ## Cross-domain impact
 

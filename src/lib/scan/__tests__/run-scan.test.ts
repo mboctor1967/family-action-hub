@@ -194,3 +194,141 @@ describe('runScanForAccount', () => {
     expect(result.actionable).toBe(0)
   })
 })
+
+/**
+ * Covers AC-001 / AC-002 / AC-003 (TC-004 / TC-005 / TC-006).
+ *
+ * Regression guard for the 2026-05 → 2026-08 outage: every nightly run threw at
+ * the Gmail token step and left its scan_runs row stuck at 'running' forever, so
+ * 159 failures accumulated without a single one being recorded as a failure.
+ */
+describe('runScanForAccount — failure recording', () => {
+  /** Records every db.update(...).set(...) payload so we can assert on what was written. */
+  function buildRecordingDb() {
+    const updates: Record<string, unknown>[] = []
+    const update = vi.fn().mockImplementation(() => ({
+      set: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+        updates.push(payload)
+        return { where: vi.fn().mockResolvedValue([]) }
+      }),
+    }))
+    const insert = vi.fn().mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: 'scan-run-1' }]),
+      }),
+    })
+    return { updates, update, insert, delete: vi.fn(), select: vi.fn() }
+  }
+
+  const accountRow = { id: 'acc-1', accessToken: 'tok', refreshToken: 'refresh', tokenExpiry: null }
+  const accountSelect = () => ({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([accountRow]) }),
+    }),
+  })
+
+  /** scan_runs writes carry `status`; gmail_accounts writes never do. */
+  const runUpdates = (u: Record<string, unknown>[]) => u.filter((p) => 'status' in p)
+  const accountUpdates = (u: Record<string, unknown>[]) =>
+    u.filter((p) => 'lastError' in p || 'lastScanAt' in p)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(preFilterEmails).mockReturnValue([])
+    vi.mocked(classifyEmails).mockResolvedValue([])
+  })
+
+  it('TC-004 — marks the scan run failed with an error_message when the scan throws', async () => {
+    const mockDb = buildRecordingDb()
+    mockDb.select.mockReturnValueOnce(accountSelect())
+    vi.mocked(fetchEmails).mockRejectedValue(
+      Object.assign(new Error('invalid_client'), {
+        response: { status: 401, data: { error: 'invalid_client' } },
+      }),
+    )
+    Object.assign(db as unknown as Record<string, unknown>, mockDb)
+
+    await expect(runScanForAccount('acc-1')).rejects.toThrow()
+
+    const failed = runUpdates(mockDb.updates).filter((p) => p.status === 'failed')
+    expect(failed).toHaveLength(1)
+    expect(failed[0].errorMessage).toEqual(expect.stringContaining('invalid_client'))
+    expect(failed[0].completedAt).toBeInstanceOf(Date)
+  })
+
+  it('TC-005 — records last_error, last_error_code and last_error_at on the account', async () => {
+    const mockDb = buildRecordingDb()
+    mockDb.select.mockReturnValueOnce(accountSelect())
+    vi.mocked(fetchEmails).mockRejectedValue(
+      Object.assign(new Error('invalid_client'), {
+        response: { status: 401, data: { error: 'invalid_client' } },
+      }),
+    )
+    Object.assign(db as unknown as Record<string, unknown>, mockDb)
+
+    await expect(runScanForAccount('acc-1')).rejects.toThrow()
+
+    const acct = accountUpdates(mockDb.updates)
+    expect(acct).toHaveLength(1)
+    expect(acct[0].lastErrorCode).toBe('invalid_client')
+    expect(acct[0].lastError).toEqual(expect.stringContaining('GOOGLE_CLIENT_SECRET'))
+    expect(acct[0].lastErrorAt).toBeInstanceOf(Date)
+    // A failed scan must never advance the "last successful scan" marker.
+    expect(acct[0].lastScanAt).toBeUndefined()
+  })
+
+  it('rethrows so the caller can count the failure — never swallows', async () => {
+    const mockDb = buildRecordingDb()
+    mockDb.select.mockReturnValueOnce(accountSelect())
+    vi.mocked(fetchEmails).mockRejectedValue(new Error('boom'))
+    Object.assign(db as unknown as Record<string, unknown>, mockDb)
+
+    await expect(runScanForAccount('acc-1')).rejects.toThrow('boom')
+  })
+
+  it('TC-006 — a successful scan clears the error fields and advances last_scan_at', async () => {
+    const mockDb = buildRecordingDb()
+    const email = makeEmail('m1')
+    vi.mocked(fetchEmails).mockResolvedValue({ emails: [email], newAccessToken: undefined })
+    vi.mocked(preFilterEmails).mockReturnValue([email])
+    vi.mocked(classifyEmails).mockResolvedValue([makeClassification('m1')])
+
+    mockDb.select
+      .mockReturnValueOnce(accountSelect())
+      .mockReturnValueOnce({ from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) })
+      .mockReturnValueOnce({ from: vi.fn().mockResolvedValue([{ name: 'Finance' }]) })
+    Object.assign(db as unknown as Record<string, unknown>, mockDb)
+
+    await runScanForAccount('acc-1')
+
+    const acct = accountUpdates(mockDb.updates)
+    expect(acct).toHaveLength(1)
+    expect(acct[0].lastScanAt).toBeInstanceOf(Date)
+    expect(acct[0].lastError).toBeNull()
+    expect(acct[0].lastErrorCode).toBeNull()
+    expect(acct[0].lastErrorAt).toBeNull()
+  })
+
+  it('treats a run that finds no new emails as a success — it reached Gmail', async () => {
+    // Otherwise a run of quiet days would let "last successful scan" go stale in
+    // Settings and look identical to a broken scanner.
+    const mockDb = buildRecordingDb()
+    const email = makeEmail('m1')
+    vi.mocked(fetchEmails).mockResolvedValue({ emails: [email], newAccessToken: undefined })
+
+    mockDb.select
+      .mockReturnValueOnce(accountSelect())
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([{ messageId: 'm1' }]) }),
+      })
+    Object.assign(db as unknown as Record<string, unknown>, mockDb)
+
+    const result = await runScanForAccount('acc-1')
+
+    expect(result.newEmails).toBe(0)
+    const acct = accountUpdates(mockDb.updates)
+    expect(acct).toHaveLength(1)
+    expect(acct[0].lastScanAt).toBeInstanceOf(Date)
+    expect(acct[0].lastError).toBeNull()
+  })
+})
