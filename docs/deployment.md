@@ -23,7 +23,7 @@ Set in Vercel project settings. `.env.local` mirrors them for local development.
 
 | Path | Schedule (`vercel.json`) | Notes |
 |---|---|---|
-| `/api/cron/digest` | `0 20 * * *` | **Discrepancy:** every recorded run actually starts ~03:01 UTC, not 20:00. Unexplained — worth investigating; it means the digest arrives early afternoon Sydney, not at breakfast as documented. |
+| `/api/cron/digest` | `0 20 * * *` | **Fires at 20:00 UTC exactly as configured** (resolved v0.5.0). Recorded runs *look* like ~03:01 UTC because `scan_runs.started_at` is `timestamp` **without** time zone, so the Neon driver renders it in the reading machine's local zone — a 7-hour phantom shift when read from a Pacific-time workstation. Migrating those columns to `timestamptz` is a logged follow-up. |
 
 ## Health checks
 
@@ -39,6 +39,31 @@ Run this first whenever the digest looks wrong. An account is only `HEALTHY` wit
 2. Schema changes to date are additive and nullable, so a code revert needs no migration rollback.
 
 ## Deploy history
+
+### 2026-08-31 — v0.5.0 — Digest age cap
+
+Bounds the daily WhatsApp digest to the last 7 days on `emails_scanned.date`, the same window the scanner uses. See `docs/features/2026-08-30-digest-age-cap.md`.
+
+- **Schema:** none. Code-only change plus docs.
+- **New env vars:** none. (`WHATSAPP_OPS_NUMBER`, added in v0.4.2, was set in Vercel production on 2026-08-30.)
+- **Behaviour change:** actionable, unreviewed email older than 7 days no longer appears in the digest. It is **not** mutated — it stays `unreviewed` and visible in triage. An item gets seven consecutive morning nudges before it drops out.
+- **Cron discrepancy resolved:** the suspected 03:01 UTC firing was a `timestamp`-without-time-zone display artefact, not a scheduling fault. See Scheduled jobs above.
+
+**Deploy result:** `dpl_C97Nj5vKgjUfJE3xCESCYrnqVqyH` — state READY, target production, commit `b98a491`, region `iad1`, built in 71s (2026-08-31T22:59:06Z → 23:00:17Z), aliased to `family-action-hub.vercel.app`. Tag `v0.5.0` pushed.
+
+**Smoke tests**
+
+| # | Test | Result |
+|---|---|---|
+| 1 | Site boots — `/login` renders | **PASS** — HTTP 200 |
+| 2 | `/api/cron/digest` returns 401 without a bearer token | **PASS** — 401 `{"error":"unauthorized"}` |
+| 3 | `/api/cron/digest` returns 401 with a wrong bearer token | **PASS** — HTTP 401 |
+| 4 | `/` redirects unauthenticated traffic | **PASS** — HTTP 307 |
+| 5 | `npm run scan:health` reports `[HEALTHY]` | **PASS** — `mboctor@gmail.com [HEALTHY]`, refresh token present, last successful scan within 24h |
+| 6 | Scan still ingesting post-deploy | **PASS** — run `2026-09-01T03:02Z` completed, 42 emails, 1 actionable, 23s |
+
+**Still open:** TC-003 (manual) — confirm after the next digest that rows aged out by the cap keep their `triage_status`. Pre-deploy baseline recorded in the brief: `(null)` 1044 · `confirmed` 10 · `rejected` 31 · `unreviewed` 3.
+
 
 ### 2026-08-29 — v0.4.2 — Scan reliability: fail loud
 
