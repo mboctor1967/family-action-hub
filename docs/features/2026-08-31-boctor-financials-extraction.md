@@ -51,7 +51,7 @@ every decision below; re-measure before acting if this spec has aged.
 | Dashboard pages under `/financials` | 12 |
 | DB tables owned by financials | 14 of 31 |
 | **Inbound coupling** (non-financials code importing financials) | **4 references, all type-only** |
-| **FKs leaving the financials cluster** | **2**, both nullable, both `onDelete: 'set null'` |
+| **FKs leaving the financials cluster** | **1** — `export_jobs.requested_by`, nullable, `onDelete: 'set null'` |
 
 ### Inbound coupling, in full
 
@@ -191,12 +191,18 @@ is a hyperlink.
 | # | What | Now | After | Migration |
 |---|---|---|---|---|
 | S1 | `export_jobs.requested_by` | `uuid` → `profiles.id`, nullable, `set null` | `text` (email) | Backfill from `profiles.email`, drop constraint, alter type |
-| S2 | `financial_assumptions.updated_by` | `uuid` → `profiles.id`, nullable, `set null` | `text` (email) | Same |
-| S3 | `isClaudeAtoEnabled` | reads hub `app_settings` | reads `bf_app_settings` | Copy the one key across |
+| S2 | `isClaudeAtoEnabled` | reads hub `app_settings` | reads `bf_app_settings` | Copy the one key across |
 
-Both FK columns are nullable audit fields with `onDelete: 'set null'` — nothing depends
-on referential integrity to `profiles`. S1 and S2 are additive-then-swap and can be
-applied before any code moves, with the hub still running.
+**Corrected 2026-08-31 during planning.** An earlier draft listed a second FK,
+`financial_assumptions.updated_by`. That column does not exist — the table has
+`approved_by`, already `text` with no constraint. The other `updated_by` FK in the
+schema belongs to `app_settings`, which stays with the hub. Verified with
+`grep -n 'references(() => profiles.id' src/lib/db/schema.ts`: eight FKs to `profiles`,
+of which exactly one (line 482, `export_jobs`) sits in the financials cluster.
+
+The FK column is a nullable audit field with `onDelete: 'set null'` — nothing depends
+on referential integrity to `profiles`. S1 is additive-then-swap and can be applied
+before any code moves, with the hub still running.
 
 ### 4.3 Shared code
 
@@ -240,7 +246,7 @@ being missed cost four months of silent scan failure.
 
 | Phase | Action | Rollback |
 |---|---|---|
-| P0 | Apply S1–S3 to the shared DB while the hub still runs | Columns are additive; revert is a drop |
+| P0 | Apply S1–S2 to the shared DB while the hub still runs | Columns are additive; revert is a drop |
 | P1 | Stand up `boctor-financials` to parity. Both apps live against the same tables | Use the hub |
 | P2 | Use the new app exclusively for ~2 weeks, **including one full tax-prep export** | Use the hub |
 | P3 | Separate release: delete `/financials` from the hub — 100 files, 14 schema definitions, 13 home cards → 1 link-out card | `git revert` |
@@ -274,7 +280,7 @@ stack at once.
   Byte-comparison is explicitly *not* the test — the PDFs embed generation timestamps.
 - **AC-004 [MUST]** — Given the new app is running, When any query it issues is traced,
   Then it touches only its own 19 tables.
-- **AC-005 [MUST]** — Given S1–S3 are applied, When the schema is inspected, Then no
+- **AC-005 [MUST]** — Given S1–S2 are applied, When the schema is inspected, Then no
   foreign key crosses between the financial cluster and the hub cluster.
 - **AC-006 [MUST]** — Given the hub after P3, When it is built and tested, Then it
   compiles, its suite passes, and no reference to `financials` remains outside the
