@@ -14,6 +14,14 @@ Types: `manual`, `build`, `schema`, `visual`, `smoke`
 
 ---
 
+## 2026-08-30 12:40 — build + manual — Digest age cap (v0.5.0)
+- TC-001 (digestCutoff boundary: 7d inclusive, 7d+1ms excluded): PASS — `src/app/api/cron/digest/__tests__/route.test.ts`
+- TC-002 (digest query carries a date lower bound ~7d before now): PASS — same file
+- TC-003 (age cap never mutates `triage_status`): PENDING — verify after the next digest. Pre-deploy baseline: `(null)` 1044 / `confirmed` 10 / `rejected` 31 / `unreviewed` 3
+- T-1 (ASSUMPTION-001: no NULL `date` on actionable rows): PASS — 1,088 rows, 0 NULLs
+- Suite: PASS — 159/159 across 22 files
+- Build: PASS — `npm run build` clean; `tsc --noEmit` clean
+- Notes: red-first observed — both new tests failed pre-implementation. Real-data check: old query 3 rows, new query 3 rows (identical only because the stale April rows were triaged by hand during outage recovery; the cap is preventative).
 ## 2026-04-05 — visual + build — UI Refresh v0.1.1 (nav removal + compact NavCards)
 - TC-001 (header has no nav links): PASS
 - TC-002 (no bottom nav on mobile): PASS

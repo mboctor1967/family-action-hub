@@ -9,7 +9,7 @@ vi.mock('@/lib/scan/priority-score', () => ({
   scoreEmail: vi.fn().mockImplementation((e: any) => (e?.subject?.includes('due') ? 5 : 1)),
 }))
 
-import { GET } from '../route'
+import { GET, digestCutoff, DIGEST_MAX_AGE_DAYS } from '../route'
 import { runScanForAccount } from '@/lib/scan/run-scan'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
 import { sendOpsAlert } from '@/lib/whatsapp/ops-alert'
@@ -218,5 +218,66 @@ describe('GET /api/cron/digest', () => {
     const data = await res.json()
     expect(data.skipped).toBe(1)
     expect(data.sent).toBe(0)
+  })
+
+  /**
+   * AC-001 / AC-002 — the digest must agree with the scanner about what "current"
+   * means. Before this, any untriaged row resurfaced in every digest forever: the
+   * first digest after the 2026-08-30 outage recovery carried three 2026-04-29/30
+   * emails as if they were news.
+   */
+  describe('age cap (DEC-1: 7 days on emails_scanned.date)', () => {
+    it('TC-001 — digestCutoff is exactly DIGEST_MAX_AGE_DAYS before now, inclusive', () => {
+      expect(DIGEST_MAX_AGE_DAYS).toBe(7)
+      const now = new Date('2026-08-30T20:00:00.000Z')
+      const cutoff = digestCutoff(now)
+      expect(cutoff.toISOString()).toBe('2026-08-23T20:00:00.000Z')
+
+      // The bound is `gte`, so an email dated exactly at the cutoff survives and
+      // one a millisecond older does not. Stated here because the boundary is the
+      // whole behaviour: off by one direction and a 7-day window silently becomes 6.
+      const exactlySevenDaysOld = new Date('2026-08-23T20:00:00.000Z')
+      const aMillisecondOlder = new Date('2026-08-23T19:59:59.999Z')
+      expect(exactlySevenDaysOld.getTime() >= cutoff.getTime()).toBe(true)
+      expect(aMillisecondOlder.getTime() >= cutoff.getTime()).toBe(false)
+    })
+
+    it('TC-002 — the digest query is bound by the cutoff date', async () => {
+      const whereSpy = vi.fn().mockResolvedValue([])
+      Object.assign(db, {
+        select: vi.fn((fields?: unknown) => {
+          if (fields) return { from: vi.fn().mockReturnValue({ where: whereSpy }) }
+          return { from: vi.fn().mockResolvedValue([{ id: 'acc-1', email: 'test@gmail.com' }]) }
+        }),
+      })
+
+      const before = Date.now()
+      await GET(makeReq({ authorization: 'Bearer test-secret' }))
+      const after = Date.now()
+
+      expect(whereSpy).toHaveBeenCalledTimes(1)
+
+      // Pull every bound parameter out of the drizzle condition tree and look for
+      // the date lower bound. Asserting on the value rather than the SQL string
+      // keeps this from breaking when drizzle changes its chunk formatting.
+      const dates: Date[] = []
+      const walk = (node: unknown, depth = 0): void => {
+        if (!node || depth > 8) return
+        if (node instanceof Date) return void dates.push(node)
+        if (Array.isArray(node)) return node.forEach((n) => walk(n, depth + 1))
+        if (typeof node === 'object') {
+          const rec = node as Record<string, unknown>
+          for (const key of ['queryChunks', 'value', 'left', 'right', 'params']) {
+            if (key in rec) walk(rec[key], depth + 1)
+          }
+        }
+      }
+      walk(whereSpy.mock.calls[0][0])
+
+      expect(dates).toHaveLength(1)
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+      expect(dates[0].getTime()).toBeGreaterThanOrEqual(before - sevenDaysMs - 1000)
+      expect(dates[0].getTime()).toBeLessThanOrEqual(after - sevenDaysMs + 1000)
+    })
   })
 })

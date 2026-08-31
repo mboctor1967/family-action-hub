@@ -45,7 +45,7 @@ Run this first whenever the digest looks wrong. An account is only `HEALTHY` wit
 Ships the four-branch stack `schema/scan-health-fields` → `fix/scan/fail-loud` → `feat/settings/gmail-health` → `fix/whatsapp/digest-fail-loud`. See `docs/features/2026-08-29-scan-reliability-fail-loud.md`.
 
 - **Schema:** already applied to the shared Neon instance before deploy (idempotent `ADD COLUMN IF NOT EXISTS`). No post-deploy migration step.
-- **New env var:** `WHATSAPP_OPS_NUMBER` — **not yet set in Vercel**; falls back to the first allowlist entry, so the deploy is safe without it.
+- **New env var:** `WHATSAPP_OPS_NUMBER` — **set in Vercel production 2026-08-30** (v0.5.0). Resolves to the same number as the previous first-allowlist-entry fallback; setting it explicitly removes the dependency on allowlist ordering.
 - **Known unverified at deploy time:** TC-014 (Settings card renders *Needs attention* with the remedy) — the automated half of AC-012 passes, the visual half was not checked. TC-015 (`maxDuration` on a real recovery run) cannot be exercised until the OAuth secret is rotated.
 - **Does not fix the outage.** The Gmail scan stays dead until the operator mints a new Google OAuth client secret, updates `GOOGLE_CLIENT_SECRET` in Vercel and `.env.local`, and reconnects Gmail in Settings. What changes is that the *next* failure is reported within a day.
 

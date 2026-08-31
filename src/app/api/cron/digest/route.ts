@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emailsScanned, gmailAccounts } from '@/lib/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte } from 'drizzle-orm'
 import { runScanForAccount, type ScanResult } from '@/lib/scan/run-scan'
 import { scoreEmail } from '@/lib/scan/priority-score'
 import { sendDigest } from '@/lib/whatsapp/digest-sender'
@@ -14,6 +14,20 @@ import { APP_LOCALE, APP_TIMEZONE } from '@/lib/constants'
 // to 100 emails and classifies them in batches. Without this the first successful
 // run after a long gap is the one most likely to be cut off. See DEC-5 / AC-013.
 export const maxDuration = 300
+
+/**
+ * How far back the digest looks, in days. Deliberately the same 7 days as
+ * `runScanForAccount`'s default scan window: the digest and the scanner must agree
+ * on what "current" means. They did not before — the digest had no date bound at
+ * all, so every untriaged row resurfaced in it forever, and the first digest after
+ * the 2026-08-30 outage recovery arrived carrying 2026-04-29 email as news. DEC-1.
+ */
+export const DIGEST_MAX_AGE_DAYS = 7
+
+/** Oldest email date the digest will include, inclusive. */
+export function digestCutoff(now: Date = new Date()): Date {
+  return new Date(now.getTime() - DIGEST_MAX_AGE_DAYS * 24 * 60 * 60 * 1000)
+}
 
 // Vercel Cron invokes scheduled paths via GET, injecting `Authorization: Bearer $CRON_SECRET`.
 // The WhatsApp "scan" command also hits this endpoint with the same auth header — see webhook/route.ts.
@@ -78,7 +92,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     })
   }
 
-  // Fetch actionable + unreviewed emails across all accounts.
+  // Fetch actionable + unreviewed emails from the last DIGEST_MAX_AGE_DAYS days.
+  // The date bound is applied here rather than after the fetch because
+  // `emails_scanned` grows without limit (785 rows in April 2026 alone), and
+  // because an item ageing out must not be mutated — it stays `unreviewed` and
+  // visible in triage, it simply stops being digest material. AC-001..AC-003.
+  const cutoff = digestCutoff()
   const items = await db
     .select({
       id: emailsScanned.id,
@@ -94,6 +113,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       and(
         eq(emailsScanned.classification, 'actionable'),
         eq(emailsScanned.triageStatus, 'unreviewed'),
+        gte(emailsScanned.date, cutoff),
       ),
     )
 
