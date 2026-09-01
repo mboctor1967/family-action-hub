@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     .insert(exportJobs)
     .values({
       fy,
-      requestedBy: session.user.id,
+      requestedBy: session.user.email,
       status: 'pending',
       progressPercent: 0,
       currentStep: 'Waiting for stream connection',

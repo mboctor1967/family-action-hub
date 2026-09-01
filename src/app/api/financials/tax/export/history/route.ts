@@ -22,7 +22,7 @@ export async function GET() {
   const jobs = await db
     .select()
     .from(exportJobs)
-    .where(eq(exportJobs.requestedBy, session.user.id))
+    .where(eq(exportJobs.requestedBy, session.user.email!))
     .orderBy(desc(exportJobs.createdAt))
     .limit(20)
 

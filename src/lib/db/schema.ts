@@ -479,7 +479,9 @@ export const invoiceTags = pgTable('invoice_tags', {
 export const exportJobs = pgTable('export_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),
   fy: text('fy').notNull(),
-  requestedBy: uuid('requested_by').references(() => profiles.id, { onDelete: 'set null' }),
+  // Email string, not a FK. Severed 2026-08-31 so the financials cluster has no
+  // reference into the hub cluster — see docs/features/2026-08-31-boctor-financials-extraction.md S1.
+  requestedBy: text('requested_by'),
   status: text('status').notNull().default('pending'), // 'pending' | 'running' | 'complete' | 'error' | 'cancelled'
   progressPercent: integer('progress_percent').default(0),
   currentStep: text('current_step'),

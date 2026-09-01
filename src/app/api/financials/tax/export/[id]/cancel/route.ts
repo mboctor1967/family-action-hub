@@ -30,7 +30,7 @@ export async function POST(_request: Request, context: RouteContext) {
     .where(
       and(
         eq(exportJobs.id, jobId),
-        eq(exportJobs.requestedBy, session.user.id),
+        eq(exportJobs.requestedBy, session.user.email!),
         inArray(exportJobs.status, ['pending', 'running'])
       )
     )

@@ -37,7 +37,11 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const { id: jobId } = await context.params
+  // userId stays a UUID — the Drive token lookup is keyed on it.
   const userId = session.user.id
+  // requestedBy is an email string since the FK to profiles was severed (S1,
+  // docs/features/2026-08-31-boctor-financials-extraction.md).
+  const userEmail = session.user.email ?? null
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
@@ -75,7 +79,7 @@ export async function GET(_request: Request, context: RouteContext) {
           const job = claimed[0]
 
           // Auth check on the claim
-          if (job.requestedBy !== userId) {
+          if (job.requestedBy !== userEmail) {
             send({ type: 'error', message: 'Forbidden (job belongs to a different user)' })
             return
           }
@@ -162,7 +166,7 @@ export async function GET(_request: Request, context: RouteContext) {
             return
           }
 
-          if (current.requestedBy !== userId) {
+          if (current.requestedBy !== userEmail) {
             send({ type: 'error', message: 'Forbidden' })
             return
           }
