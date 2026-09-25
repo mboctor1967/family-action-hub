@@ -2,12 +2,17 @@
 Feature: Hub financials decoupling (P3)
 Date: 2026-09-25
 Tier: HIGH (score 12; see sizing)
-Status: DRAFT (code is gated on "P2 passed")
+Status: SIGNED OFF 2026-09-25 (code is gated on "P2 passed")
 Target release: v0.7.0
 App version at last update: v0.6.0
 ---
 
 # Hub financials decoupling (P3)
+
+## Sign-off (2026-09-25)
+- Signed off by Maged, with DEC-1 = A and DEC-4 = yes.
+- Reviewed from the downstream side by the boctor-financials session: verdict **GO**. It found 3 corrections and 2 notes, all applied. Its answers are in `docs/review/2026-09-25-boctor-financials-response.md`. It also shipped its own `tablesFilter` (`a240f11`) and refreshed the stale orca checkout.
+- Post-deploy AC-007 checks: message the boctor-financials session, which runs its 4 checks against `8a285d1` and reports the diff.
 
 ## Sizing
 | Factor | Finding | Score |
@@ -42,7 +47,7 @@ The financial domain now lives in **boctor-financials** (extraction design `2026
 | DEC-1 | WhatsApp `spend` / `balance` / `recent` commands are **removed** | **Chosen: A (user, 2026-09-25)** |
 | DEC-2 | Tables stay in the DB; only the hub's *definitions* go | Note |
 | DEC-3 | 13 home cards become 1 link card to `boctor-financials.vercel.app` | Note (extraction D4) |
-| DEC-4 | The hub's Google sign-in drops `drive.readonly` | Recommended; confirm at sign-off |
+| DEC-4 | The hub's Google sign-in drops `drive.readonly` | **Chosen: yes (user, 2026-09-25)** |
 | DEC-5 | Order: consumers → code → definitions, so every branch builds green | Note |
 | DEC-6 | Financial docs are archived, not deleted | Note |
 
@@ -86,11 +91,11 @@ Each wave is one domain (single-domain rule).
   - `parity-check.mts`: 7,174 transactions · 2023-06-14 → 2026-09-09 · net $320,008.47
   - `entity-model-acceptance.mts`: AC-E1..E7, including 36 owned tables and 0 cross-cluster FKs
   - `tax-pack-acceptance.mts`: AC-TP9
-  - `npm test`: 1,371 passing
+  - `npm test`: 1,371 at the baseline, **1,372 as of boctor-financials v0.39.1**. v0.39.1 only changed drizzle config, one test and version files, with no data path, so the figures above are unaffected
 
   These cover all 36 owned tables at value level; a row count cannot see a changed amount or category. boctor-financials must also still sign in and show Spending FY2025-26, and its repo is untouched. Risk: HIGH
 - AC-008 [MUST]: **Given** `package.json`, **When** P3 ships, **Then** `@react-pdf/renderer`, `@vercel/blob`, `jszip`, `p-limit`, `papaparse`, `@types/papaparse`, `pdf-parse`, `recharts`, `tesseract.js` and `xlsx` are gone, with no import left. Risk: LOW
-- AC-009 [SHOULD, if DEC-4]: **Given** a fresh sign-in, **When** Auth.js stores the grant, **Then** `accounts.scope` has no Drive scope, and Reconnect plus Scan succeed. Risk: MED
+- AC-009 [SHOULD]: **Given** a fresh sign-in, **When** Auth.js stores the grant, **Then** `accounts.scope` has no Drive scope, and Reconnect plus Scan succeed. Risk: MED
 - AC-010 [SHOULD]: **Given** the Vercel hub project, **When** P3 is live, **Then** `GDRIVE_FINANCIALS_FOLDER_ID`, `FINANCIAL_PARSE_MODEL` and `BLOB_READ_WRITE_TOKEN` are removed from **the hub project only**. The Blob store itself is **not** deleted. Risk: MED
 - AC-011 [SHOULD]: **Given** the docs, **When** P3 ships:
   - financial briefs, `docs/domains/financials.md`, `invoices.md` and the ATO reference workbook are under `docs/archive/financials/`;
@@ -157,7 +162,7 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
 
   AC-006 · TC-006
 
-### Wave 6: Auth (`chore/auth/drop-drive-scope`), SHOULD, if DEC-4 confirmed
+### Wave 6: Auth (`chore/auth/drop-drive-scope`), SHOULD. DEC-4 confirmed
 - [ ] **T-8** [S]: remove `drive.readonly` from `auth.ts` scopes and fix the comment at `auth.ts:46` · AC-009 · TC-009
 
 ### Release and post-deploy
