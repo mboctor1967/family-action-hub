@@ -131,11 +131,11 @@ One domain per branch, working in the Orca checkout, port 3000.
 - [x] **T-1** [S]: add the `whatsappOutboundMessages` table; apply via `scripts/apply-whatsapp-outbound-messages.ts` (NOT drizzle-kit push — shared DB, would drop bf_* tables) · owns `src/lib/db/schema.ts`, that script · AC-005 · TC-005
 
 ### Wave 2: WhatsApp (`fix/whatsapp/template-delivery`)
-- [ ] **T-2** [M]: `sendMessage` throws on non-2xx and returns the wamid; add `sendTemplate()`; both record an outbound row · owns `src/lib/whatsapp/client.ts` · AC-004 · TC-004
-- [ ] **T-3** [M]: extract `runDailyDigest()` and `buildDigestPayload()` from the cron route; the cron sends the notice template · owns `src/lib/whatsapp/daily-digest.ts`, `src/app/api/cron/digest/route.ts`, `digest-sender.ts` · AC-001 · TC-001
-- [ ] **T-4** [M]: the webhook handles the *Show digest* button (full digest plus snapshot) and `statuses[]` · owns `src/app/api/whatsapp/webhook/route.ts` · AC-002, AC-005 · TC-002, TC-005
-- [ ] **T-5** [S]: the ops alert uses the template · owns `ops-alert.ts` · AC-003 · TC-003
-- [ ] **T-6** [S]: `POST /api/whatsapp/digest/send` and `GET /api/whatsapp/delivery-health` · owns `src/app/api/whatsapp/digest/send/route.ts`, `delivery-health/route.ts` · AC-007, AC-008 · TC-007, TC-008
+- [x] **T-2** [M]: `sendMessage` throws on non-2xx and returns the wamid; add `sendTemplate()`; both record an outbound row · owns `src/lib/whatsapp/client.ts` · AC-004 · TC-004
+- [x] **T-3** [M]: extract `runDailyDigest()` and `buildDigestPayload()` from the cron route; the cron sends the notice template · owns `src/lib/whatsapp/daily-digest.ts`, `src/app/api/cron/digest/route.ts`, `digest-sender.ts` · AC-001 · TC-001
+- [x] **T-4** [M]: the webhook handles the *Show digest* button (full digest plus snapshot) and `statuses[]` · owns `src/app/api/whatsapp/webhook/route.ts` · AC-002, AC-005 · TC-002, TC-005
+- [x] **T-5** [S]: the ops alert uses the template · owns `ops-alert.ts` · AC-003 · TC-003
+- [x] **T-6** [S]: `POST /api/whatsapp/digest/send` and `GET /api/whatsapp/delivery-health` · owns `src/app/api/whatsapp/digest/send/route.ts`, `delivery-health/route.ts` · AC-007, AC-008 · TC-007, TC-008
 
 ### Wave 3: Scan (`fix/scan/unscanned-first-and-log-hygiene`)
 - [ ] **T-7** [S]: redact tokens from logged Gmail errors in `client.ts`, `run-scan.ts` and the cron route · AC-006 · TC-006

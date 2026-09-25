@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/whatsapp/client', () => ({
-  sendMessage: vi.fn().mockResolvedValue(undefined),
+  sendMessage: vi.fn().mockResolvedValue('wamid.X'),
 }))
 vi.mock('../digest-snapshot', () => ({
   persistSnapshot: vi.fn().mockResolvedValue('snap-1'),
@@ -40,7 +40,7 @@ describe('sendDigest', () => {
     expect(persistSnapshot).toHaveBeenCalledWith({
       recipient: '+61412408587',
       positions: [{ pos: 1, emailId: 'uuid-abc' }],
-      messageId: null,
+      messageId: 'wamid.X', // the sent digest's wamid, so a reply can be tied to it
     })
   })
 

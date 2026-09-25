@@ -8,8 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * error and should never see one.
  */
 
-const h = vi.hoisted(() => ({ sendMessage: vi.fn() }))
-vi.mock('@/lib/whatsapp/client', () => ({ sendMessage: h.sendMessage }))
+const h = vi.hoisted(() => ({ sendMessage: vi.fn(), sendTemplate: vi.fn() }))
+vi.mock('@/lib/whatsapp/client', () => ({ sendMessage: h.sendMessage, sendTemplate: h.sendTemplate }))
 
 import { resolveOpsRecipient, formatOpsAlert, sendOpsAlert } from '../ops-alert'
 
@@ -23,7 +23,9 @@ const failure = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
-  h.sendMessage.mockResolvedValue(undefined)
+  h.sendMessage.mockResolvedValue('wamid.1')
+  h.sendTemplate.mockResolvedValue('wamid.2')
+  delete process.env.WHATSAPP_TEMPLATE_OPS_ALERT
   delete process.env.WHATSAPP_OPS_NUMBER
   process.env.WHATSAPP_ALLOWED_NUMBERS = '+61412408587,+61402149544'
 })
@@ -110,5 +112,36 @@ describe('sendOpsAlert (AC-011)', () => {
 
   it('reports success as true', async () => {
     await expect(sendOpsAlert([failure()])).resolves.toBe(true)
+  })
+})
+
+describe('sendOpsAlert via template (AC-003)', () => {
+  beforeEach(() => {
+    process.env.WHATSAPP_TEMPLATE_OPS_ALERT = 'family_hub_scan_alert'
+  })
+
+  it('TC-003 — sends the template (deliverable outside the 24h window) to the ops number only', async () => {
+    await expect(sendOpsAlert([failure()])).resolves.toBe(true)
+
+    expect(h.sendMessage).not.toHaveBeenCalled()
+    expect(h.sendTemplate).toHaveBeenCalledTimes(1)
+    const args = h.sendTemplate.mock.calls[0][0]
+    expect(args).toMatchObject({ to: '+61412408587', name: 'family_hub_scan_alert', kind: 'ops_alert' })
+    const [code, lastScan, link] = args.bodyParams
+    expect(code).toContain('invalid_client')
+    expect(lastScan).toMatch(/2 May 2026|02 May 2026/)
+    expect(link).toMatch(/^https:\/\/.+\/settings$/)
+  })
+
+  it('names every failing error code in one parameter', async () => {
+    await sendOpsAlert([failure(), failure({ email: 'other@gmail.com', errorCode: 'invalid_grant' })])
+    const [code] = h.sendTemplate.mock.calls[0][0].bodyParams
+    expect(code).toContain('invalid_client')
+    expect(code).toContain('invalid_grant')
+  })
+
+  it('reports a rejected template send as not delivered', async () => {
+    h.sendTemplate.mockRejectedValue(new Error('132001 template does not exist'))
+    await expect(sendOpsAlert([failure()])).resolves.toBe(false)
   })
 })

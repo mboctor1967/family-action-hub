@@ -13,7 +13,7 @@ export async function sendDigest(args: {
   await expireSnapshotsForPhone(args.recipient)
 
   if (args.items.length === 0) {
-    await sendMessage({ to: args.recipient, body: formatZeroItems(args.stats) })
+    await sendMessage({ to: args.recipient, body: formatZeroItems(args.stats), kind: 'digest_full' })
     return
   }
 
@@ -21,11 +21,11 @@ export async function sendDigest(args: {
   const overflowCount = Math.max(0, args.items.length - MAX_ITEMS)
   const body = formatDigest(shown, { dateLabel: args.dateLabel, overflowCount, stats: args.stats })
 
-  await sendMessage({ to: args.recipient, body })
+  const wamid = await sendMessage({ to: args.recipient, body, kind: 'digest_full' })
 
   // Snapshot stores emails_scanned.id (UUID), NOT the Gmail message_id — so the
   // reply handler can call confirmEmailAsTask/rejectEmail directly (both look
   // up by the UUID primary key, not by Gmail message_id).
   const positions = shown.map((item, i) => ({ pos: i + 1, emailId: item.id }))
-  await persistSnapshot({ recipient: args.recipient, positions, messageId: null })
+  await persistSnapshot({ recipient: args.recipient, positions, messageId: wamid || null })
 }

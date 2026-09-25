@@ -1,4 +1,4 @@
-import { sendMessage } from '@/lib/whatsapp/client'
+import { sendMessage, sendTemplate } from '@/lib/whatsapp/client'
 import { APP_LOCALE, APP_TIMEZONE } from '@/lib/constants'
 
 /**
@@ -72,11 +72,36 @@ export async function sendOpsAlert(failures: ScanFailureReport[]): Promise<boole
     return false
   }
 
+  const template = process.env.WHATSAPP_TEMPLATE_OPS_ALERT?.trim()
+
   try {
-    await sendMessage({ to: recipient, body: formatOpsAlert(failures) })
+    if (template) {
+      // A template is the only message type Meta delivers outside the 24h window.
+      // The free-form alert below was dropped for 20 straight days in Sep 2026
+      // because nobody had messaged the bot — the one moment an alert matters.
+      await sendTemplate({ to: recipient, name: template, bodyParams: opsAlertTemplateParams(failures), kind: 'ops_alert' })
+    } else {
+      await sendMessage({ to: recipient, body: formatOpsAlert(failures), kind: 'ops_alert' })
+    }
     return true
   } catch (err) {
-    console.error('[ops-alert] failed to deliver scan failure alert', err)
+    console.error('[ops-alert] failed to deliver scan failure alert', err instanceof Error ? err.message : err)
     return false
   }
+}
+
+/** Body params for the `family_hub_scan_alert` template: error code(s), last successful scan, fix link. */
+export function opsAlertTemplateParams(failures: ScanFailureReport[]): string[] {
+  const codes = [...new Set(failures.map((f) => f.errorCode ?? 'unknown'))].join(', ')
+  const lastSuccess = failures
+    .map((f) => f.lastSuccessfulScan)
+    .filter((d): d is Date => d != null)
+    .sort((a, b) => b.getTime() - a.getTime())[0]
+  return [codes, lastSuccess ? dateFmt.format(lastSuccess) : 'never', `${hubBaseUrl()}/settings`]
+}
+
+function hubBaseUrl(): string {
+  // Vercel system env var; the fallback keeps local runs and tests pointing at production.
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || 'family-action-hub.vercel.app'
+  return `https://${host}`
 }

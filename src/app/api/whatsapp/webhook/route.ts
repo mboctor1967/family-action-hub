@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { whatsappProcessedMessages } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -11,6 +11,11 @@ import { getActiveSnapshotForPhone } from '@/lib/whatsapp/digest-snapshot'
 import { parseDigestReply } from '@/lib/whatsapp/digest-reply-parser'
 import { handleDigestReply } from '@/lib/whatsapp/digest-reply-handler'
 import { formatNoSnapshot } from '@/lib/whatsapp/digest-format'
+import { DIGEST_BUTTON_PAYLOAD, sendFullDigest, runDailyDigest } from '@/lib/whatsapp/daily-digest'
+import { applyStatusUpdate } from '@/lib/whatsapp/outbound-log'
+
+// The `scan` command runs the whole digest (scan + AI classification) in `after()`.
+export const maxDuration = 300
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -43,9 +48,37 @@ export async function POST(request: Request) {
     from: string
     type: string
     text?: { body?: string }
+    button?: { payload?: string; text?: string }
   }
-  const message = (payload as { entry?: { changes?: { value?: { messages?: WaMessage[] } }[] }[] } | null)
-    ?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
+  interface WaStatus {
+    id: string
+    status: string
+    timestamp?: string
+    errors?: { code?: number; title?: string }[]
+  }
+  const value = (payload as { entry?: { changes?: { value?: { messages?: WaMessage[]; statuses?: WaStatus[] } }[] }[] } | null)
+    ?.entry?.[0]?.changes?.[0]?.value
+
+  // Delivery receipts for messages we sent. This is the only place Meta reports a
+  // message it accepted but could not deliver (e.g. 131047, outside the 24h window).
+  // AC-005.
+  if (value?.statuses?.length) {
+    for (const st of value.statuses) {
+      try {
+        await applyStatusUpdate({
+          id: st.id,
+          status: st.status,
+          timestamp: st.timestamp,
+          errorCode: st.errors?.[0]?.code ?? null,
+          errorTitle: st.errors?.[0]?.title ?? null,
+        })
+      } catch (err) {
+        console.error('[webhook] failed to record status', st.id, err instanceof Error ? err.message : err)
+      }
+    }
+  }
+
+  const message = value?.messages?.[0]
   if (!message) return NextResponse.json({ ok: true })
 
   const existing = await db
@@ -57,7 +90,43 @@ export async function POST(request: Request) {
 
   await db.insert(whatsappProcessedMessages).values({ id: message.id })
 
+  // sendMessage throws on a Meta rejection. Answer 200 regardless: the message is
+  // already marked processed, so a 500 would only make Meta retry into the dedupe.
+  try {
+    return await handleInbound(message)
+  } catch (err) {
+    console.error('[webhook] handling failed for', message.id, err instanceof Error ? err.message : err)
+    return NextResponse.json({ ok: true })
+  }
+}
+
+type InboundMessage = {
+  id: string
+  from: string
+  type: string
+  text?: { body?: string }
+  button?: { payload?: string; text?: string }
+}
+
+async function handleInbound(message: InboundMessage): Promise<NextResponse> {
   if (!isAllowed(message.from)) return NextResponse.json({ ok: true })
+
+  // "Show digest" tap on the daily template. The tap is itself an inbound message,
+  // so the 24h window is now open and the full free-form digest will be delivered.
+  // AC-002.
+  if (message.type === 'button' && message.button?.payload === DIGEST_BUTTON_PAYLOAD) {
+    try {
+      await sendFullDigest(message.from)
+    } catch (err) {
+      console.error('[webhook] full digest failed for', message.from, err instanceof Error ? err.message : err)
+      await sendMessage({
+        to: message.from,
+        body: '⚠️ Could not load the digest — try the button again, or open Scan in the hub.',
+        replyToMessageId: message.id,
+      }).catch(() => {})
+    }
+    return NextResponse.json({ ok: true })
+  }
 
   if (message.type !== 'text') return NextResponse.json({ ok: true })
 
@@ -100,17 +169,15 @@ export async function POST(request: Request) {
 
   // Force-scan command — triggers the digest cron on demand (on top of the 20:00 UTC schedule).
   if (/^\s*scan\s*$/i.test(body)) {
-    const cronSecret = process.env.CRON_SECRET
-    const appUrl = process.env.AUTH_URL ?? 'https://family-action-hub.vercel.app'
-    if (cronSecret) {
-      // Fire and forget — don't await. The digest will arrive on its own.
-      fetch(`${appUrl}/api/cron/digest`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${cronSecret}` },
-      }).catch((err) => console.error('[scan command] cron trigger failed', err))
-    } else {
-      console.error('[scan command] CRON_SECRET not set')
-    }
+    // Run after the response, not as an un-awaited fetch: a serverless function may
+    // be frozen as soon as it responds, silently killing a fire-and-forget request.
+    after(async () => {
+      try {
+        await runDailyDigest()
+      } catch (err) {
+        console.error('[scan command] digest run failed', err instanceof Error ? err.message : err)
+      }
+    })
     await sendMessage({
       to: message.from,
       body: '🔄 Scanning Gmail now — digest will arrive in 20-60 seconds.',
