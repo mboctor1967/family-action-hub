@@ -2,7 +2,7 @@
 Feature: WhatsApp delivery reliability
 Date: 2026-09-25
 Tier: MED (score 12 → HIGH recommended; user chose MED)
-Status: IN PROGRESS (release gate)
+Status: SHIPPED (2026-09-25, v0.6.0). TC-008 and TC-012 pending template approval
 Target release: v0.6.0
 App version at last update: v0.6.0
 ---

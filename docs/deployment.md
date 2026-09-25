@@ -45,6 +45,27 @@ Run this first whenever the digest looks wrong. An account is only `HEALTHY` wit
 
 ## Deploy history
 
+### 2026-09-25 — v0.6.0 — WhatsApp delivery reliability
+
+- **Deployment:** `dpl_56JBCpvMqoxtCrQWRB2ADcbhv3mh`, commit `8ff3723` on `master`, tag `v0.6.0` (on `54b69ef`). READY and aliased to `family-action-hub.vercel.app`, region `iad1`.
+- **Schema:** `whatsapp_outbound_messages` was applied before deploy with `scripts/apply-whatsapp-outbound-messages.ts`. Additive only.
+- **Also shipped in this push:** S1 (`3f9e42d`, the `export_jobs.requested_by` code change; its DB half was applied 2026-08-31) and the `tablesFilter` in `drizzle.config.ts`.
+- **Env vars:** none needed at deploy time. The template vars `WHATSAPP_TEMPLATE_DIGEST` and `WHATSAPP_TEMPLATE_OPS_ALERT` are to be set once Meta approves both templates (submitted 2026-09-25). Until then the digest stays on the free-form path.
+- **Smoke tests, run against the alias before the Vercel bot check started challenging this workstation:**
+
+| Check | Expected | Result |
+|---|---|---|
+| `/login`, `/privacy`, `/terms` | 200 | PASS |
+| `/settings` signed out | 307 to login | PASS |
+| `/api/cron/digest` without the secret | 401 | PASS |
+| Webhook GET with a bad verify token | 403 | PASS |
+| Webhook POST with a bad signature | 401 | PASS |
+| `digest/send`, `delivery-health`, `backfill/estimate`, `connect-gmail` signed out | 401 | PASS (middleware; this does not prove the new routes exist) |
+| Runtime errors in the first hour | none | PASS |
+
+- **Caveat:** about 45 polling requests in 6 minutes from one IP tripped Vercel's automatic bot check (`X-Vercel-Mitigated: challenge`, Security Checkpoint 403) for that client. No project firewall or Attack Mode is configured. Browsers pass the check. Poll through the Vercel API rather than curling the site.
+- **Pending:** TC-008 (Send digest now, once the templates are Active) and TC-012 (3 consecutive daily digests with no replies).
+
 ### 2026-08-31 — v0.5.0 — Digest age cap
 
 Bounds the daily WhatsApp digest to the last 7 days on `emails_scanned.date`, the same window the scanner uses. See `docs/features/2026-08-30-digest-age-cap.md`.
