@@ -18,7 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive.readonly',
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly',
           access_type: 'offline',
           prompt: 'consent',
         },
@@ -43,7 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           await db.update(profiles).set({ role: 'admin' }).where(eq(profiles.id, user.id))
         }
 
-        // Always update OAuth tokens so new scopes (e.g. Drive) take effect
+        // Always update OAuth tokens so a scope change takes effect on the next sign-in
         if (account.access_token) {
           await db.update(accounts).set({
             access_token: account.access_token,

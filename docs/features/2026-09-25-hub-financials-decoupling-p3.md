@@ -166,7 +166,7 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
   AC-006 · TC-006
 
 ### Wave 6: Auth (`chore/auth/drop-drive-scope`), SHOULD. DEC-4 confirmed
-- [ ] **T-8** [S]: remove `drive.readonly` from `auth.ts` scopes and fix the comment at `auth.ts:46` · AC-009 · TC-009
+- [x] **T-8** [S]: remove `drive.readonly` from `auth.ts` scopes and fix the comment at `auth.ts:46` · AC-009 · TC-009
 
 ### Release and post-deploy
 - [ ] **T-9**: after the hub deploy, the boctor-financials session runs its four baseline checks (parity-check, entity-model-acceptance, tax-pack-acceptance, `npm test`) and compares them with `8a285d1`. The hub session requests it via cross-session message and does not run anything in that repo itself · AC-007 · TC-007
