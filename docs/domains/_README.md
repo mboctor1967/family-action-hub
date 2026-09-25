@@ -6,14 +6,14 @@ Each domain of the Family Action Hub has its own backlog file. **Each branch tou
 
 | Domain | File | Path in codebase |
 |---|---|---|
-| Financials | [financials.md](financials.md) | `src/app/(dashboard)/financials/*` (excl. invoices), `src/app/api/financials/*`, `src/components/financials/*` |
-| Invoices (sub of Financials) | [invoices.md](invoices.md) | `src/app/(dashboard)/financials/invoices/*`, `src/app/api/financials/invoices/*`, `src/components/financials/invoices/*` |
 | Tasks | [tasks.md](tasks.md) | `src/app/(dashboard)/tasks/*`, `src/app/api/tasks/*`, `src/components/tasks/*` |
 | Scan (Gmail) | [scan.md](scan.md) | `src/app/(dashboard)/scan/*`, `src/app/api/scan/*`, `src/lib/scan/*` |
 | Notion | [notion.md](notion.md) | `src/app/(dashboard)/notion/*`, `src/app/api/notion/*`, `src/components/notion/*` |
 | Settings | [settings.md](settings.md) | `src/app/(dashboard)/settings/*`, `src/app/api/settings/*`, `src/components/settings/*` |
-| WhatsApp | [whatsapp.md](whatsapp.md) | **Separate worktree** `family-action-hub-whatsapp` — branch `feat/whatsapp-bot` |
+| WhatsApp | [whatsapp.md](whatsapp.md) | `src/app/api/whatsapp/*`, `src/lib/whatsapp/*`. Work on normal feature branches; the old `family-action-hub-whatsapp` worktree is stale and must not be used |
 | Home/Shell | [home-shell.md](home-shell.md) | `src/app/(dashboard)/page.tsx`, `src/app/(dashboard)/layout.tsx`, `src/components/ui/*`, `src/components/layout/*` |
+
+**Financials and Invoices are no longer hub domains.** They moved to the separate **boctor-financials** app (canonical checkout `C:/Users/MagedBoctor/Claude/boctor-financials`) and were removed from the hub in P3 (v0.7.0). Their old backlogs are in `docs/archive/financials/`. The hub still shares the Neon database with boctor-financials; `drizzle.config.ts` restricts the hub to its own 18 tables.
 
 ## File structure
 
@@ -28,7 +28,7 @@ Each domain file follows the same layout:
 ## Branch discipline
 
 - Branch names: `feat/<domain>/<name>`, `fix/<domain>/<name>`, `chore/<domain>/<name>`
-- Commits cite the domain in the scope: `feat(scan): ...`, `fix(financials): ...`
+- Commits cite the domain in the scope: `feat(scan): ...`, `fix(whatsapp): ...`
 - Cross-domain work: decompose into multiple branches before writing code
 - Shared schema changes (`src/lib/db/schema.ts`): land in a separate `schema/<name>` branch that merges first
 - At release gate: each domain gets its own version bump + CHANGELOG entry + commit + Vercel deploy

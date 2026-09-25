@@ -26,7 +26,7 @@ export default function TermsOfServicePage() {
 
         <h2 className="text-lg font-semibold mt-8">2. Acceptable use</h2>
         <ul className="list-disc pl-6 space-y-1">
-          <li>Use the app only to manage your own household data (tasks, finances, emails).</li>
+          <li>Use the app only to manage your own household data (tasks and emails).</li>
           <li>Do not attempt to extract or reverse-engineer the code or database.</li>
           <li>Do not upload content that isn&apos;t yours.</li>
         </ul>

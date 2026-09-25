@@ -145,16 +145,17 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
   - Also removed the disabled "Vehicle Logbook – Coming soon" card: the vehicle logbook lives in boctor-financials (`vehicles`, `vehicle_journeys`).
 
 ### Wave 4: Delete (`refactor/financials/delete-from-hub`)
-- [ ] **T-4** [M]: delete:
+- [x] **T-4** [M]: delete:
   - `app/(dashboard)/financials/`, `app/api/financials/`, `components/financials/` and `lib/financials/`
   - `lib/gdrive/`, `lib/assumptions.ts`, `lib/gmail/search.ts` and `types/financials.ts`
   - `isClaudeAtoEnabled` and its key constant from `lib/app-settings.ts`, now that the bundler is gone
   - the financial one-off scripts: `src/scripts/*` (36) and `scripts/{ai-categorize-unclassified,dedupe-transactions,migrate-txn-fingerprint}.ts`, `scripts/build-phase-f-ato-workbook.py`, `scripts/sever-export-jobs-fk.sql`
-  - `test/data/`
+  - `test/data/` and `src/types/pdf-parse.d.ts` (both existed only for `pdf-parse`)
+  - The financial-data claims on the public `/privacy` and `/terms` pages. Google's consent screen links to them, so they must stay accurate
 
   AC-004, AC-005 · TC-004, TC-005
-- [ ] **T-5** [S]: uninstall the 10 packages · AC-008 · TC-008
-- [ ] **T-6** [S]: archive the docs; update `docs/domains/_README.md`, CLAUDE.md and home-shell/settings domain docs · AC-011
+- [x] **T-5** [S]: uninstall the 10 packages · AC-008 · TC-008
+- [x] **T-6** [S]: archive the docs; update `docs/domains/_README.md`, CLAUDE.md and home-shell/settings domain docs · AC-011
 
 ### Wave 5: Schema (`schema/remove-financial-definitions`)
 - [ ] **T-7** [M]: remove the 14 definitions and their relations. Rewrite `boundary.test.ts` to assert none is defined.

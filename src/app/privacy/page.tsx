@@ -28,9 +28,8 @@ export default function PrivacyPolicyPage() {
         <ul className="list-disc pl-6 space-y-1">
           <li>Google OAuth profile details: name, email, avatar URL.</li>
           <li>Gmail messages the user chooses to scan (subjects, senders, snippets, AI-derived classifications).</li>
-          <li>Financial statements and transactions the user imports (CSV/QFX/QIF files from personal bank accounts).</li>
           <li>Tasks, comments, and subtasks the user creates.</li>
-          <li>WhatsApp messages sent to the family bot, stored only as message IDs for idempotency.</li>
+          <li>WhatsApp messages exchanged with the family bot, stored as message IDs and delivery status only.</li>
         </ul>
 
         <h2 className="text-lg font-semibold mt-8">How data is used</h2>

@@ -2,7 +2,7 @@
 
 # Project — Boctor Family Hub
 
-Single Next.js App Router project. Family portal with multiple functional domains (Tasks, Financials, Scan, Settings) accessible from a home-page card grid. Solo developer: **Maged Boctor**, admin of the hub.
+Single Next.js App Router project. Family portal with multiple functional domains (Tasks, Scan, Notion, WhatsApp, Settings) accessible from a home-page card grid. Financials moved to the separate **boctor-financials** app in P3 (v0.7.0); the hub keeps one link card to it and shares its Neon database (never run `drizzle-kit push`; `drizzle.config.ts` limits the hub to its own tables). Solo developer: **Maged Boctor**, admin of the hub.
 
 ## Structure
 
@@ -12,7 +12,7 @@ src/
 ├── app/api/{domain}/               — API routes per domain
 ├── components/{domain}/            — domain-specific components
 ├── components/ui/                  — shared UI (PageHeader, StatCard, NavCard, EmptyState, DataTableContainer)
-└── lib/                            — db, auth, Drive client, financials parsers, etc.
+└── lib/                            — db, auth, Gmail client, scan, WhatsApp, Notion, etc.
 
 docs/
 ├── features/                       — one file per feature (the "brief" — see Workflow below)

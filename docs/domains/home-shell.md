@@ -21,7 +21,7 @@ The top-level landing page, layout shell, shared UI primitives, and cross-cuttin
 ## Queued (next)
 
 1. **Modular monolith enforcement** (memory: `modular_monolith_refactor.md`) — ESLint rule + `dep-cruiser` config to enforce domain boundaries (no cross-domain imports except through a shared `lib/` layer). ~1.5 wks. Queued 2026-04-16. **This is the technical backing for the single-domain-branch rule.**
-2. **Remove or build "Coming soon" NavCards** — `/vehicles` (page.tsx:428–434) and `/financials/duplicates` are listed on the home grid but routes don't exist. Either ship or delete.
+2. ~~Remove or build "Coming soon" NavCards~~ — **done in P3 (v0.7.0)**: both placeholders removed. Vehicles live in boctor-financials.
 3. **Portal landing revisit** (memory: `portal_landing_revisit.md`) — holistic redesign of the home page / main menu. Deferred until all in-flight work ships.
 
 ## Deferred

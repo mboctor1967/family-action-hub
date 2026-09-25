@@ -1,8 +1,4 @@
-/**
- * App settings helper — key-value store for shared admin configuration.
- *
- * Phase F1 — Tax Prep / Accountant Pack
- */
+/** App settings helper — key-value store for shared admin configuration. */
 
 import { db } from '@/lib/db'
 import { appSettings } from '@/lib/db/schema'
@@ -24,7 +20,7 @@ export async function setSetting<T = unknown>(
     await db
       .update(appSettings)
       .set({
-        value: value as any,
+        value: value as unknown,
         updatedAt: new Date(),
         updatedBy: updatedBy ?? null,
       })
@@ -32,16 +28,8 @@ export async function setSetting<T = unknown>(
   } else {
     await db.insert(appSettings).values({
       key,
-      value: value as any,
+      value: value as unknown,
       updatedBy: updatedBy ?? null,
     })
   }
-}
-
-// Typed convenience functions
-const CLAUDE_ATO_KEY = 'ai_claude_enabled_ato'
-
-export async function isClaudeAtoEnabled(): Promise<boolean> {
-  const value = await getSetting<boolean>(CLAUDE_ATO_KEY)
-  return value === true
 }

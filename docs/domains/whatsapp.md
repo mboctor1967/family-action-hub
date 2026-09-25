@@ -1,6 +1,6 @@
 # WhatsApp
 
-Family WhatsApp group bot — read-only financials queries + (queued) daily digest of actionable emails.
+Family WhatsApp bot — daily Gmail digest (template notice + Show digest) and digest reply triage. The read-only money commands (`spend` / `balance` / `recent`) were retired in P3 (v0.7.0).
 
 **Path ownership:** `src/app/api/whatsapp/*`, `src/lib/whatsapp/*`
 
