@@ -3,14 +3,11 @@ import { db } from '@/lib/db'
 import { whatsappProcessedMessages } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { verifySignature } from '@/lib/whatsapp/verify'
-import { parseCommand } from '@/lib/whatsapp/parse'
-import { handleCommand } from '@/lib/whatsapp/commands'
 import { sendMessage } from '@/lib/whatsapp/client'
 import { isAllowed } from '@/lib/whatsapp/allowlist'
 import { getActiveSnapshotForPhone } from '@/lib/whatsapp/digest-snapshot'
-import { parseDigestReply } from '@/lib/whatsapp/digest-reply-parser'
 import { handleDigestReply } from '@/lib/whatsapp/digest-reply-handler'
-import { formatNoSnapshot } from '@/lib/whatsapp/digest-format'
+import { formatNoSnapshot, formatBotHelp } from '@/lib/whatsapp/digest-format'
 import { DIGEST_BUTTON_PAYLOAD, sendFullDigest, runDailyDigest } from '@/lib/whatsapp/daily-digest'
 import { applyStatusUpdate } from '@/lib/whatsapp/outbound-log'
 
@@ -186,9 +183,8 @@ async function handleInbound(message: InboundMessage): Promise<NextResponse> {
     return NextResponse.json({ ok: true })
   }
 
-  // Fall through: existing single-word command router
-  const cmd = parseCommand(body)
-  const reply = await handleCommand(cmd)
-  await sendMessage({ to: message.from, body: reply, replyToMessageId: message.id })
+  // Anything else gets the help text. The spend / balance / recent commands read the
+  // money tables owned by the other app and were retired in P3 (DEC-1).
+  await sendMessage({ to: message.from, body: formatBotHelp(), replyToMessageId: message.id })
   return NextResponse.json({ ok: true })
 }

@@ -7,6 +7,7 @@ import {
   formatTriageResult,
   formatNoSnapshot,
   formatUnrecognised,
+  formatBotHelp,
 } from '../digest-format'
 
 const STATS = {
@@ -150,5 +151,15 @@ describe('formatTriageResult', () => {
   it('appends conflict warning when same position in both', () => {
     const out = formatTriageResult({ created: 1, rejected: 0, failed: 0, outOfRange: [], conflicts: [3] })
     expect(out).toContain('Position 3 in both task and reject')
+  })
+})
+
+/** P3 AC-001: the bot no longer answers money questions; anything unknown gets this. */
+describe('formatBotHelp', () => {
+  it('lists the digest reply grammar and the scan command, and nothing financial', () => {
+    const text = formatBotHelp()
+    expect(text).toContain('task 1,3')
+    expect(text).toMatch(/\bscan\b/)
+    expect(text).not.toMatch(/spend|balance|recent/i)
   })
 })

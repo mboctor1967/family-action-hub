@@ -39,7 +39,6 @@ vi.mock('@/lib/whatsapp/daily-digest', () => ({
   runDailyDigest: h.runDailyDigest,
 }))
 vi.mock('@/lib/whatsapp/outbound-log', () => ({ applyStatusUpdate: h.applyStatusUpdate }))
-vi.mock('@/lib/whatsapp/commands', () => ({ handleCommand: async () => 'cmd-reply' }))
 
 import { POST } from '../route'
 
@@ -137,9 +136,12 @@ describe('existing inbound paths (regression after the handleInbound refactor)',
     expect(h.sendMessage).toHaveBeenCalledTimes(1)
   })
 
-  it('falls through to the command router for other text', async () => {
+  it('P3 TC-001: a retired money command gets the bot help, not financial data', async () => {
     await post(text('wamid.r3', 'balance'))
-    expect(h.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ body: 'cmd-reply' }))
+    const reply = h.sendMessage.mock.calls[0][0].body as string
+    expect(reply).toContain('task 1,3')
+    expect(reply).toMatch(/\bscan\b/)
+    expect(reply).not.toMatch(/balance|spend|recent/i)
   })
 
   it('ignores a message it has already processed', async () => {

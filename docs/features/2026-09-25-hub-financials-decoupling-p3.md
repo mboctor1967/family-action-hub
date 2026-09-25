@@ -135,7 +135,7 @@ Nothing is added.
 All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
 
 ### Wave 1: WhatsApp (`refactor/whatsapp/remove-money-commands`)
-- [ ] **T-1** [S]: delete `commands.ts`, `formatters.ts` and `parse.ts` with their tests. The webhook's fall-through replies with the digest help text. Update the home "WhatsApp Bot" card copy if it lists the commands · AC-001 · TC-001
+- [x] **T-1** [S]: delete `commands.ts`, `formatters.ts` and `parse.ts` with their tests. The webhook's fall-through replies with the digest help text. Update the home "WhatsApp Bot" card copy if it lists the commands · AC-001 · TC-001
 
 ### Wave 2: Settings (`refactor/settings/remove-ai-ato-panel`)
 - [ ] **T-2** [S]: delete `components/settings/ai-cost-panel.tsx` and the `ai-cost-estimate` and `ai-claude-toggle` routes. Remove `isClaudeAtoEnabled`/`setClaudeAtoEnabled` from `lib/app-settings.ts`, **keeping** `getSetting`/`setSetting` (used by the digest since v0.6.0) · AC-002 · TC-002

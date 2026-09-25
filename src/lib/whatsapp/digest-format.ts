@@ -89,6 +89,19 @@ export function formatUnrecognised(): string {
   return `Didn't catch that.\n\n${HELP_GRAMMAR}\n\n${HELP_EXAMPLE}`
 }
 
+/**
+ * Reply to anything the bot does not recognise. The bot is Gmail-digest only: the
+ * spend / balance / recent money commands were retired in P3 (DEC-1): money
+ * questions belong to the separate money app now.
+ */
+export function formatBotHelp(): string {
+  return `Didn't catch that.
+
+${HELP_GRAMMAR}
+
+Or send *scan* for a fresh digest.`
+}
+
 export function formatFailure(): string {
   return '⚠️ Digest failed — scan error. Open /scan to review manually.'
 }
