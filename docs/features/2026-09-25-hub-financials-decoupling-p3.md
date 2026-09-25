@@ -2,9 +2,9 @@
 Feature: Hub financials decoupling (P3)
 Date: 2026-09-25
 Tier: HIGH (score 12; see sizing)
-Status: SIGNED OFF 2026-09-25 (code is gated on "P2 passed")
+Status: IN PROGRESS (release gate). P2 accepted by Maged 2026-09-25
 Target release: v0.7.0
-App version at last update: v0.6.0
+App version at last update: v0.7.0
 ---
 
 # Hub financials decoupling (P3)
@@ -197,8 +197,17 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
 
 ## Release notes
 ### User-facing
-- (filled at release)
+The hub is now just the family tools: Tasks, Gmail scanning, the WhatsApp digest, Notion and Settings. All money work lives in **Boctor Financials**, one tap away from the new card on the home page. The WhatsApp bot no longer answers `spend`, `balance` or `recent`; use Boctor Financials instead. Next time you sign in, Google asks only for Gmail access, not Drive. After that sign-in, press **Reconnect Gmail** in Settings once.
+
 ### QA
-- (filled at release)
+- Automated: TC-001, TC-005, TC-006, TC-008 and the auth-scopes test pass (218/218).
+- Regression areas: the WhatsApp webhook (digest replies, `scan`, Show digest, statuses), Settings cards, and home page queries.
+- Post-deploy manual: TC-003, TC-004, TC-009, TC-010. TC-007 is run by the boctor-financials session against baseline `8a285d1`.
+
 ### Technical
-- (filled at release)
+- The schema drops 14 table definitions. **No migration, no data change.**
+- `drizzle.config.ts` derives `tablesFilter` from the schema (18 tables), guarded by `boundary.test.ts`.
+- `auth.ts` scope is now `openid email profile gmail.readonly`.
+- 10 packages removed.
+- 3 env vars are now unused in the hub project: `BLOB_READ_WRITE_TOKEN`, `GDRIVE_FINANCIALS_FOLDER_ID`, `FINANCIAL_PARSE_MODEL`.
+- Rollback: `git revert`. Nothing in the database changed.

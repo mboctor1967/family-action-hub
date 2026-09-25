@@ -20,7 +20,8 @@ Set in Vercel project settings. `.env.local` mirrors them for local development.
 | `WHATSAPP_TEMPLATE_OPS_ALERT` | **Added v0.6.0.** Name of the approved scan-failure template (`family_hub_scan_alert`). Unset → free-form alert (same caveat). |
 | `WHATSAPP_TEMPLATE_LANG` | **Added v0.6.0.** Optional, default `en`. Must match the language the templates were approved in. |
 | `DIGEST_FALLBACK_USER_ID` | Owner for digest replies from users without a hub record. |
-| `BLOB_READ_WRITE_TOKEN`, `GDRIVE_FINANCIALS_FOLDER_ID`, `NOTION_DEDUPE_TOKEN`, `FINANCIAL_PARSE_MODEL` | Per-domain. |
+| `NOTION_DEDUPE_TOKEN` | Notion dedupe. |
+| ~~`BLOB_READ_WRITE_TOKEN`, `GDRIVE_FINANCIALS_FOLDER_ID`, `FINANCIAL_PARSE_MODEL`~~ | **Unused since v0.7.0** (financials moved to boctor-financials). Remove from the **hub** Vercel project only. Never delete the Blob store itself. |
 
 ## Scheduled jobs
 

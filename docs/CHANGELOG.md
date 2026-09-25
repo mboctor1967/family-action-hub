@@ -7,6 +7,24 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-09-25** — `refactor` — **v0.7.0 — Financials removed from the hub (P3).** The financial domain moved to the separate **boctor-financials** app in P0–P2; the hub still carried a full, stale copy that could edit the same live tables. That copy is now gone.
+  - **Removed:** 153 files and about 21,500 lines:
+    - financial pages, 43 API routes, components and lib;
+    - the Google Drive client, the invoice Gmail search and the one-off scripts;
+    - ten packages: `@react-pdf/renderer`, `@vercel/blob`, `jszip`, `p-limit`, `papaparse`, `@types/papaparse`, `pdf-parse`, `recharts`, `tesseract.js`, `xlsx`.
+  - **Safety gain:** this includes `/api/financials/accounts/[id]`, which could DELETE another app's transactions, statements and accounts.
+  - **Home:** 13 financial cards and 16 queries against the financial tables are replaced by one external **Boctor Financials** card. The dead Duplicate Detection and Vehicle Logbook placeholders are also gone.
+  - **WhatsApp:** the `spend` / `balance` / `recent` commands are retired (DEC-1). Unknown messages get the digest help. Digest replies, `scan` and Show digest are unchanged.
+  - **Settings:** the AI-ATO cost panel and its two routes are removed. boctor-financials has its own.
+  - **Schema:** the 14 financial table *definitions* are removed; **no SQL ran, and no table or row was touched.**
+    - `drizzle.config.ts`'s `tablesFilter` is now derived from the schema.
+    - `boundary.test.ts` pins the filter to the 18 hub tables and fails if a boctor-financials table appears.
+    - Verified read-only with `drizzle-kit pull`.
+  - **Auth:** the hub no longer requests Google Drive (DEC-4). It now asks only for sign-in and read-only Gmail. Existing grants keep working until the next sign-in.
+  - **Docs:** the public `/privacy` and `/terms` no longer claim financial data handling. The financial domain docs moved to `docs/archive/financials/`.
+  - **boctor-financials:** reviewed the plan (verdict GO) and verifies its data after deploy against its pre-severance baseline `8a285d1`.
+  - 218 tests passing. Refs: `docs/features/2026-09-25-hub-financials-decoupling-p3.md`.
+
 - **2026-09-25** — `fix` — **v0.6.0 — WhatsApp delivery reliability.** The daily digest "worked 1–2 times, then stopped", and 20 days of scan failures produced no alert. The end-to-end review found three independent causes.
   - **Gmail (no code):** the Google OAuth consent screen was in *Testing*, so every refresh token died after 7 days. The app was published to *In production* (unverified) on 2026-09-25 and Gmail was reconnected.
   - **WhatsApp:** every outbound message was free-form text, which Meta delivers only within 24 h of the recipient's last message. So the digest arrived only on days after someone replied, and the ops alert was always dropped.

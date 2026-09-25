@@ -10,6 +10,14 @@ Format:
 - Visual: PASS/FAIL (Phase 2 only)
 ```
 
+## 2026-09-25 — refactor — Hub financials decoupling P3 (v0.7.0)
+- Automated: 218/218 vitest PASS; `tsc --noEmit` clean; eslint clean on every touched file; production build PASS
+- TC-001 (webhook `balance` → help), TC-005 (no financial imports/queries remain), TC-006 (boundary test), TC-008 (packages gone), AC-009 (auth-scopes test): PASS
+- TC-006 live: read-only `drizzle-kit pull` through the derived filter returns exactly the 18 hub tables
+- Code review: PASS (0 blockers; 3 minor findings, all fixed)
+- P2 gate: accepted by Maged on a page-by-page review of boctor-financials. The full tax-export comparison was not run; AC-007 covers value-level parity after deploy
+- PENDING post-deploy: TC-003 and TC-004 (home card; `/financials` returns 404), TC-007 (boctor-financials baseline checks, run by that session), TC-009 (sign out and in, Reconnect, Scan, open a bf Inbox preview), TC-010 (Vercel env vars)
+
 ## 2026-09-25 — feature — WhatsApp delivery reliability (v0.6.0)
 - Automated: 227/227 vitest PASS; `tsc --noEmit` clean; eslint clean on all new files (the 19 pre-existing findings in older files are unchanged)
 - TC-001, TC-002, TC-003, TC-004, TC-005, TC-006, TC-009, TC-011: PASS (automated)
