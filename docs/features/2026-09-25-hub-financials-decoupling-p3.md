@@ -2,7 +2,7 @@
 Feature: Hub financials decoupling (P3)
 Date: 2026-09-25
 Tier: HIGH (score 12; see sizing)
-Status: IN PROGRESS (release gate). P2 accepted by Maged 2026-09-25
+Status: SHIPPED 2026-09-25 (v0.7.0, dpl_J1GCzN…). Post-deploy AC-007 / TC-003 / TC-004 / TC-009 / TC-010 pending
 Target release: v0.7.0
 App version at last update: v0.7.0
 ---

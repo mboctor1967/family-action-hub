@@ -46,6 +46,26 @@ Run this first whenever the digest looks wrong. An account is only `HEALTHY` wit
 
 ## Deploy history
 
+### 2026-09-25 — v0.7.0 — Financials removed from the hub (P3)
+
+- **Deployment:** `dpl_J1GCzNVjkYN18yBPNPaq2eurRv46`, commit `bdab5a2`, tag `v0.7.0`. READY in about 42 s and aliased to `family-action-hub.vercel.app`.
+- **Schema / data:** none. The 14 financial table definitions were removed from the hub schema only; the tables and their data are owned by boctor-financials.
+- **Smoke tests:**
+
+| Check | Result |
+|---|---|
+| `/login` | 200 |
+| `/privacy` | 200, no financial-data claim |
+| `/api/cron/digest` without the secret | 401 |
+| Runtime errors, first 30 min | none |
+| Vercel bot-check headers | none (polling went through the Vercel API this time) |
+
+- **Pending:**
+  - **AC-007:** the boctor-financials session runs its baseline checks against `8a285d1`.
+  - **TC-009:** Maged signs out and in, presses Reconnect Gmail, then opens a boctor-financials Inbox preview.
+  - **TC-010:** Maged removes `BLOB_READ_WRITE_TOKEN`, `GDRIVE_FINANCIALS_FOLDER_ID` and `FINANCIAL_PARSE_MODEL` from the hub Vercel project (never delete the Blob store).
+  - **TC-003 / TC-004:** home card and `/financials` 404, checked signed in.
+
 ### 2026-09-25 — v0.6.0 — WhatsApp delivery reliability
 
 - **Deployment:** `dpl_56JBCpvMqoxtCrQWRB2ADcbhv3mh`, commit `8ff3723` on `master`, tag `v0.6.0` (on `54b69ef`). READY and aliased to `family-action-hub.vercel.app`, region `iad1`.
