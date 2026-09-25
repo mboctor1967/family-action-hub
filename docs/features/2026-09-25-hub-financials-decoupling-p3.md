@@ -141,7 +141,8 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
 - [x] **T-2** [S]: delete `components/settings/ai-cost-panel.tsx` and the `ai-cost-estimate` and `ai-claude-toggle` routes. Remove `setClaudeAtoEnabled` from `lib/app-settings.ts`. `isClaudeAtoEnabled` stays until T-4, because the tax-export bundler still imports it. `getSetting`/`setSetting` stay permanently (used by the digest since v0.6.0) · AC-002 · TC-002
 
 ### Wave 3: Home (`refactor/home-shell/financials-link-card`)
-- [ ] **T-3** [M]: in `app/(dashboard)/page.tsx`, remove the 16 financial queries, the 13 financial cards and the dead Duplicate card. Add one external NavCard to boctor-financials · AC-003 · TC-003
+- [x] **T-3** [M]: in `app/(dashboard)/page.tsx`, remove the 16 financial queries, the 13 financial cards and the dead Duplicate card. Add one external NavCard to boctor-financials · AC-003 · TC-003
+  - Also removed the disabled "Vehicle Logbook – Coming soon" card: the vehicle logbook lives in boctor-financials (`vehicles`, `vehicle_journeys`).
 
 ### Wave 4: Delete (`refactor/financials/delete-from-hub`)
 - [ ] **T-4** [M]: delete:
