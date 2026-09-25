@@ -12,6 +12,10 @@ import { defineConfig } from 'drizzle-kit'
  * they belong to boctor-financials now (docs/features/2026-08-31-boctor-financials-extraction.md).
  * Until P3, a `push` from here will fail trying to re-create them — which is the
  * safe failure. Production changes go through guarded SQL scripts in scripts/.
+ *
+ * NEVER remove tablesFilter. NEVER add a boctor-financials table to HUB_TABLES.
+ * The two apps share one Neon instance and boctor-financials owns 36 tables here;
+ * this filter is the only guard against a hub push offering to drop them.
  */
 const HUB_TABLES = [
   'profiles', 'accounts', 'sessions', 'verification_tokens', 'app_settings',
