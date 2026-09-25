@@ -142,8 +142,8 @@ One domain per branch, working in the Orca checkout, port 3000.
 - [x] **T-8** [M]: unscanned-first listing, date-range option, backfill estimate and chunk APIs · owns `run-scan.ts`, `src/lib/gmail/client.ts`, `src/app/api/scan/backfill/*` · AC-010, AC-011 · TC-010, TC-011
 
 ### Wave 4: Settings (`feat/settings/whatsapp-health`)
-- [ ] **T-9** [M]: WhatsApp card showing delivery health, **Send digest now** and **Scan missed emails** (estimate, confirm, progress) · owns `src/app/(dashboard)/settings/page.tsx`, `src/components/settings/*` · AC-007, AC-008, AC-010 · TC-007, TC-008, TC-010
-- [ ] **T-10** [S]: Reconnect test-refreshes before saving · owns `src/app/api/settings/connect-gmail/route.ts` · AC-009 · TC-009
+- [x] **T-9** [M]: WhatsApp card showing delivery health, **Send digest now** and **Scan missed emails** (estimate, confirm, progress) · owns `src/app/(dashboard)/settings/page.tsx`, `src/components/settings/*` · AC-007, AC-008, AC-010 · TC-007, TC-008, TC-010
+- [x] **T-10** [S]: Reconnect test-refreshes before saving · owns `src/app/api/settings/connect-gmail/route.ts` · AC-009 · TC-009
 
 ## Test cases
 - TC-001 [AUTO] AC-001: `src/lib/whatsapp/__tests__/daily-digest.test.ts`. A successful scan sends the template with the right variables to every recipient.

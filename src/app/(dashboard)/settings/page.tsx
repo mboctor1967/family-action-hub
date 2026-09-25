@@ -10,6 +10,8 @@ import { Mail, CheckCircle2, Plus, Scan, ArrowRight, AlertTriangle, RefreshCw } 
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { AiCostPanel } from '@/components/settings/ai-cost-panel'
+import { WhatsAppDeliveryCard } from '@/components/settings/whatsapp-delivery-card'
+import { MissedEmailsCard } from '@/components/settings/missed-emails-card'
 
 /** Relative age of the last successful scan — "never" is a first-class answer. */
 function formatLastScan(value: string | null): string {
@@ -132,6 +134,13 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {(session?.user as any)?.role === 'admin' && (
+        <>
+          <WhatsAppDeliveryCard />
+          {gmailAccounts.length > 0 && <MissedEmailsCard />}
+        </>
+      )}
 
       {/* Phase F1 — AI cost transparency panel */}
       {(session?.user as any)?.role === 'admin' && <AiCostPanel />}
