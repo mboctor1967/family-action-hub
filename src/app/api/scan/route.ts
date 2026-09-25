@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { gmailAccounts } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { runScanForAccount, type ScanProgressEvent } from '@/lib/scan/run-scan'
+import { describeErrorForLog } from '@/lib/gmail/client'
 
 export async function POST(request: Request) {
   const session = await auth()
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
           maxEmails: 100,
         })
       } catch (error) {
-        console.error('Scan error:', error)
+        console.error('Scan error:', describeErrorForLog(error))
         send('error', { error: error instanceof Error ? error.message : 'Scan failed' })
       } finally {
         controller.close()

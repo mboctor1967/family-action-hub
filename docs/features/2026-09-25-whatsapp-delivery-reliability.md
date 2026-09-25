@@ -120,8 +120,8 @@ Applied with `npx tsx scripts/apply-whatsapp-outbound-messages.ts` (never `drizz
 | `POST /api/whatsapp/webhook` (extended) | Meta signature | now handles `statuses[]` and `type:'button'` | AC-002, AC-005 |
 | `POST /api/whatsapp/digest/send` | admin | `{}` → `{ sent, failed, scanErrors, suppressed }` | AC-008 |
 | `GET /api/whatsapp/delivery-health` | admin | → `[{ recipient, lastDeliveredAt, lastFailure }]` | AC-007 |
-| `GET /api/scan/backfill/estimate?from&to` | admin | → `{ unscanned, estCostUsd }` | AC-010 |
-| `POST /api/scan/backfill` | admin | `{ from, to }` → `{ processed, remaining }` (one chunk ≤ 100; the UI loops) | AC-010 |
+| `GET /api/scan/backfill/estimate?from&to` | admin | → `{ unscanned, estCostUsd, chunks, truncated }` (range ≤ 30 days) | AC-010 |
+| `POST /api/scan/backfill` | admin | `{ from, to }` → `{ processed, saved, actionable, remaining, stalled }` (one chunk ≤ 100; the UI loops until remaining = 0 or stalled) | AC-010 |
 | `POST /api/settings/connect-gmail` (changed) | session | test-refresh first; 409 with a clear message on `invalid_grant` | AC-009 |
 
 ## Implementation tasks
@@ -138,8 +138,8 @@ One domain per branch, working in the Orca checkout, port 3000.
 - [x] **T-6** [S]: `POST /api/whatsapp/digest/send` and `GET /api/whatsapp/delivery-health` · owns `src/app/api/whatsapp/digest/send/route.ts`, `delivery-health/route.ts` · AC-007, AC-008 · TC-007, TC-008
 
 ### Wave 3: Scan (`fix/scan/unscanned-first-and-log-hygiene`)
-- [ ] **T-7** [S]: redact tokens from logged Gmail errors in `client.ts`, `run-scan.ts` and the cron route · AC-006 · TC-006
-- [ ] **T-8** [M]: unscanned-first listing, date-range option, backfill estimate and chunk APIs · owns `run-scan.ts`, `src/lib/gmail/client.ts`, `src/app/api/scan/backfill/*` · AC-010, AC-011 · TC-010, TC-011
+- [x] **T-7** [S]: redact tokens from logged Gmail errors in `client.ts`, `run-scan.ts` and the cron route · AC-006 · TC-006
+- [x] **T-8** [M]: unscanned-first listing, date-range option, backfill estimate and chunk APIs · owns `run-scan.ts`, `src/lib/gmail/client.ts`, `src/app/api/scan/backfill/*` · AC-010, AC-011 · TC-010, TC-011
 
 ### Wave 4: Settings (`feat/settings/whatsapp-health`)
 - [ ] **T-9** [M]: WhatsApp card showing delivery health, **Send digest now** and **Scan missed emails** (estimate, confirm, progress) · owns `src/app/(dashboard)/settings/page.tsx`, `src/components/settings/*` · AC-007, AC-008, AC-010 · TC-007, TC-008, TC-010

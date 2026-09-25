@@ -6,6 +6,7 @@ vi.mock('@/lib/db', () => ({ db: {} }))
 // Mock gmail client — match real signatures from src/lib/gmail/client.ts
 vi.mock('@/lib/gmail/client', () => ({
   fetchEmails: vi.fn(),
+  fetchUnscannedEmails: vi.fn(),
   preFilterEmails: vi.fn(),
 }))
 
@@ -18,9 +19,22 @@ vi.mock('@/lib/ai/build-prompt', () => ({
 }))
 
 import { runScanForAccount } from '../run-scan'
-import { fetchEmails, preFilterEmails } from '@/lib/gmail/client'
+import { fetchEmails, fetchUnscannedEmails, preFilterEmails } from '@/lib/gmail/client'
 import { classifyEmails } from '@/lib/ai/classify'
 import { db } from '@/lib/db'
+
+/**
+ * Gmail returns `emails` for the window; the real fetchUnscannedEmails asks the DB
+ * (via filterKnown) which are known and returns only the rest.
+ */
+function mockGmail(emails: ReturnType<typeof makeEmail>[]) {
+  vi.mocked(fetchUnscannedEmails).mockImplementation(async (_t, _q, { filterKnown }) => {
+    const ids = emails.map((e) => e.messageId)
+    const known = await filterKnown(ids)
+    const fresh = emails.filter((e) => !known.has(e.messageId))
+    return { emails: fresh, totalInWindow: ids.length, alreadyScanned: ids.length - fresh.length, remaining: 0 }
+  })
+}
 
 // Helper to build a mock email matching EmailMetadata shape
 const makeEmail = (id: string) => ({
@@ -87,10 +101,7 @@ describe('runScanForAccount', () => {
     vi.clearAllMocks()
 
     const email = makeEmail('m1')
-    vi.mocked(fetchEmails).mockResolvedValue({
-      emails: [email],
-      newAccessToken: undefined,
-    })
+    mockGmail([email])
     vi.mocked(preFilterEmails).mockReturnValue([email])
     vi.mocked(classifyEmails).mockResolvedValue([makeClassification('m1')])
   })
@@ -241,7 +252,7 @@ describe('runScanForAccount — failure recording', () => {
   it('TC-004 — marks the scan run failed with an error_message when the scan throws', async () => {
     const mockDb = buildRecordingDb()
     mockDb.select.mockReturnValueOnce(accountSelect())
-    vi.mocked(fetchEmails).mockRejectedValue(
+    vi.mocked(fetchUnscannedEmails).mockRejectedValue(
       Object.assign(new Error('invalid_client'), {
         response: { status: 401, data: { error: 'invalid_client' } },
       }),
@@ -259,7 +270,7 @@ describe('runScanForAccount — failure recording', () => {
   it('TC-005 — records last_error, last_error_code and last_error_at on the account', async () => {
     const mockDb = buildRecordingDb()
     mockDb.select.mockReturnValueOnce(accountSelect())
-    vi.mocked(fetchEmails).mockRejectedValue(
+    vi.mocked(fetchUnscannedEmails).mockRejectedValue(
       Object.assign(new Error('invalid_client'), {
         response: { status: 401, data: { error: 'invalid_client' } },
       }),
@@ -280,7 +291,7 @@ describe('runScanForAccount — failure recording', () => {
   it('rethrows so the caller can count the failure — never swallows', async () => {
     const mockDb = buildRecordingDb()
     mockDb.select.mockReturnValueOnce(accountSelect())
-    vi.mocked(fetchEmails).mockRejectedValue(new Error('boom'))
+    vi.mocked(fetchUnscannedEmails).mockRejectedValue(new Error('boom'))
     Object.assign(db as unknown as Record<string, unknown>, mockDb)
 
     await expect(runScanForAccount('acc-1')).rejects.toThrow('boom')
@@ -289,7 +300,7 @@ describe('runScanForAccount — failure recording', () => {
   it('TC-006 — a successful scan clears the error fields and advances last_scan_at', async () => {
     const mockDb = buildRecordingDb()
     const email = makeEmail('m1')
-    vi.mocked(fetchEmails).mockResolvedValue({ emails: [email], newAccessToken: undefined })
+    mockGmail([email])
     vi.mocked(preFilterEmails).mockReturnValue([email])
     vi.mocked(classifyEmails).mockResolvedValue([makeClassification('m1')])
 
@@ -314,7 +325,7 @@ describe('runScanForAccount — failure recording', () => {
     // Settings and look identical to a broken scanner.
     const mockDb = buildRecordingDb()
     const email = makeEmail('m1')
-    vi.mocked(fetchEmails).mockResolvedValue({ emails: [email], newAccessToken: undefined })
+    mockGmail([email])
 
     mockDb.select
       .mockReturnValueOnce(accountSelect())
@@ -330,5 +341,64 @@ describe('runScanForAccount — failure recording', () => {
     expect(acct).toHaveLength(1)
     expect(acct[0].lastScanAt).toBeInstanceOf(Date)
     expect(acct[0].lastError).toBeNull()
+  })
+})
+
+/** TC-011 at scan level (AC-011) plus the unchanged forceRescan path. */
+describe('runScanForAccount: window selection', () => {
+  const accountRow = { id: 'acc-1', accessToken: 'tok', refreshToken: 'r', tokenExpiry: null, lastScanAt: null }
+  const updates: Record<string, unknown>[] = []
+  function wireDb() {
+    updates.length = 0
+    const db2 = {
+      update: vi.fn().mockImplementation(() => ({
+        set: vi.fn().mockImplementation((p: Record<string, unknown>) => { updates.push(p); return { where: vi.fn().mockResolvedValue([]) } }),
+      })),
+      insert: vi.fn().mockReturnValue({ values: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'scan-run-1' }]) }) }),
+      delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+      select: vi.fn()
+        .mockReturnValueOnce({ from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([accountRow]) }) }) })
+        // Known-id lookups use .from().where(); the topics lookup awaits .from() directly.
+        .mockReturnValue({ from: vi.fn().mockReturnValue(Object.assign([], { where: vi.fn().mockResolvedValue([]) })) }),
+    }
+    Object.assign(db as unknown as Record<string, unknown>, db2)
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(preFilterEmails).mockReturnValue([])
+    vi.mocked(classifyEmails).mockResolvedValue([])
+  })
+
+  it('TC-011: reports the unscanned backlog left after this run and the full window size', async () => {
+    wireDb()
+    vi.mocked(fetchUnscannedEmails).mockResolvedValueOnce({ emails: [makeEmail('old1')], totalInWindow: 150, alreadyScanned: 100, remaining: 49 })
+
+    const r = await runScanForAccount('acc-1', { maxEmails: 1 })
+
+    expect(vi.mocked(fetchUnscannedEmails).mock.calls[0][2].maxEmails).toBe(1)
+    expect(r).toMatchObject({ totalEmails: 150, alreadyScanned: 100, newEmails: 1, remaining: 49 })
+  })
+
+  it('a range run queries by epoch and does not advance lastScanAt', async () => {
+    wireDb()
+    vi.mocked(fetchUnscannedEmails).mockResolvedValue({ emails: [], totalInWindow: 0, alreadyScanned: 0, remaining: 0 })
+    const from = new Date('2026-09-05T00:00:00Z')
+    const to = new Date('2026-09-25T00:00:00Z')
+
+    await runScanForAccount('acc-1', { range: { from, to } })
+
+    expect(vi.mocked(fetchUnscannedEmails).mock.calls[0][1]).toBe(`after:${from.getTime() / 1000} before:${to.getTime() / 1000}`)
+    expect(updates.some((u) => 'lastScanAt' in u)).toBe(false)
+  })
+
+  it('forceRescan keeps the old path: newest emails via fetchEmails', async () => {
+    wireDb()
+    vi.mocked(fetchEmails).mockResolvedValue({ emails: [makeEmail('m1')], newAccessToken: undefined })
+
+    await runScanForAccount('acc-1', { forceRescan: true })
+
+    expect(fetchEmails).toHaveBeenCalledTimes(1)
+    expect(fetchUnscannedEmails).not.toHaveBeenCalled()
   })
 })

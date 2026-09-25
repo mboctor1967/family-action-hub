@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { gmailAccounts, emailsScanned, tasks, topics, scanRuns } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
-import { fetchEmails, preFilterEmails } from '@/lib/gmail/client'
+import { fetchEmails, fetchUnscannedEmails, preFilterEmails } from '@/lib/gmail/client'
 import { classifyEmails, type EmailInput } from '@/lib/ai/classify'
 import { buildClassificationPrompt } from '@/lib/ai/build-prompt'
 import { classifyScanError } from '@/lib/scan/scan-errors'
@@ -28,6 +28,8 @@ export type ScanResult = {
   windowFrom: Date
   /** End of the scan window (= scan start time), UTC. */
   windowTo: Date
+  /** Unscanned emails left in the window after this run's batch (0 = window fully covered). */
+  remaining?: number
 }
 
 export type RunScanOptions = {
@@ -35,6 +37,8 @@ export type RunScanOptions = {
   scanWindow?: '24h' | '7d' | '30d'
   forceRescan?: boolean
   maxEmails?: number
+  /** Explicit date range (backfill). Overrides `scanWindow`. */
+  range?: { from: Date; to: Date }
   /** When running from cron, pass userId so we can look up the account */
   userId?: string
 }
@@ -73,7 +77,9 @@ export async function runScanForAccount(
   // precisely how 159 consecutive failures went unnoticed between 2026-05 and 2026-08.
   try {
     const result = await executeScan(account, scanRun.id, opts, send)
-    await markScanSuccess(account.id)
+    // A backfill proves Gmail works but is not the daily scan; advancing lastScanAt
+    // from it would mask a broken cron in Settings.
+    if (!opts.range) await markScanSuccess(account.id)
     return result
   } catch (err) {
     await markScanFailure(account.id, scanRun.id, err, send)
@@ -141,39 +147,46 @@ async function executeScan(
   send('progress', { step: 2, total: 5, label: 'Fetching emails from Gmail...', percent: 15 })
 
   const windowDays = scanWindow === '24h' ? 1 : scanWindow === '7d' ? 7 : scanWindow === '30d' ? 30 : 7
-  const windowTo = new Date()
-  const afterDate = new Date(windowTo)
-  afterDate.setDate(afterDate.getDate() - windowDays)
-  const query = `after:${afterDate.getFullYear()}/${afterDate.getMonth() + 1}/${afterDate.getDate()}`
+  const windowTo = opts.range?.to ?? new Date()
+  const afterDate = opts.range?.from ?? new Date(new Date(windowTo).setDate(windowTo.getDate() - windowDays))
+  const query = opts.range
+    ? `after:${Math.floor(afterDate.getTime() / 1000)} before:${Math.floor(windowTo.getTime() / 1000)}`
+    : `after:${afterDate.getFullYear()}/${afterDate.getMonth() + 1}/${afterDate.getDate()}`
 
-  const { emails: allEmails, newAccessToken } = await fetchEmails(
-    {
-      accessToken: account.accessToken!,
-      refreshToken: account.refreshToken,
-      tokenExpiry: account.tokenExpiry,
-    },
-    query,
-    maxEmails,
-  )
-
-  if (newAccessToken) {
-    await db.update(gmailAccounts).set({
-      accessToken: newAccessToken,
-      tokenExpiry: new Date(Date.now() + 3600 * 1000),
-    }).where(eq(gmailAccounts.id, account.id))
+  const token = {
+    accessToken: account.accessToken!,
+    refreshToken: account.refreshToken,
+    tokenExpiry: account.tokenExpiry,
   }
 
-  send('progress', { step: 2, total: 5, label: `Found ${allEmails.length} emails`, percent: 30 })
+  let allEmails: Awaited<ReturnType<typeof fetchEmails>>['emails']
+  let newEmails: typeof allEmails
+  let newAccessToken: string | undefined
+  let totalInWindow: number
+  let skipped: number
+  let remaining = 0
 
-  // Step 3: Filter already-scanned
-  let newEmails = allEmails
   if (!forceRescan) {
-    const existingEmails = await db.select({ messageId: emailsScanned.messageId })
-      .from(emailsScanned)
-      .where(eq(emailsScanned.gmailAccountId, account.id))
-    const existingIds = new Set(existingEmails.map(e => e.messageId))
-    newEmails = allEmails.filter(e => !existingIds.has(e.messageId))
+    // Unscanned-first: known ids are dropped before the cap, oldest first, so a
+    // backlog larger than maxEmails is worked through across runs instead of the
+    // same newest 100 being re-fetched forever. AC-010, AC-011.
+    const r = await fetchUnscannedEmails(token, query, {
+      maxEmails,
+      filterKnown: (ids) => knownMessageIds(account.id, ids),
+    })
+    allEmails = r.emails
+    newEmails = r.emails
+    newAccessToken = r.newAccessToken
+    totalInWindow = r.totalInWindow
+    skipped = r.alreadyScanned
+    remaining = r.remaining
   } else {
+    const r = await fetchEmails(token, query, maxEmails)
+    allEmails = r.emails
+    newEmails = r.emails
+    newAccessToken = r.newAccessToken
+    totalInWindow = r.emails.length
+    skipped = 0
     const messageIds = allEmails.map(e => e.messageId)
     if (messageIds.length > 0) {
       const existingScanned = await db.select({ id: emailsScanned.id })
@@ -190,7 +203,15 @@ async function executeScan(
     }
   }
 
-  const skipped = allEmails.length - newEmails.length
+  if (newAccessToken) {
+    await db.update(gmailAccounts).set({
+      accessToken: newAccessToken,
+      tokenExpiry: new Date(Date.now() + 3600 * 1000),
+    }).where(eq(gmailAccounts.id, account.id))
+  }
+
+  send('progress', { step: 2, total: 5, label: `Found ${totalInWindow} emails`, percent: 30 })
+
 
   if (newEmails.length === 0) {
     await db.update(scanRuns).set({
@@ -203,9 +224,9 @@ async function executeScan(
       scanRunId,
       emailsScanned: 0,
       newEmails: 0,
-      alreadyScanned: allEmails.length,
-      message: allEmails.length > 0
-        ? `All ${allEmails.length} emails in this window were already scanned. New emails will appear when they arrive.`
+      alreadyScanned: skipped,
+      message: totalInWindow > 0
+        ? `All ${totalInWindow} emails in this window were already scanned. New emails will appear when they arrive.`
         : 'No emails found in this time window.',
     })
 
@@ -215,11 +236,12 @@ async function executeScan(
       informational: 0,
       noise: 0,
       skipped,
-      totalEmails: allEmails.length,
+      totalEmails: totalInWindow,
       newEmails: 0,
-      alreadyScanned: allEmails.length,
+      alreadyScanned: skipped,
       windowFrom: afterDate,
       windowTo,
+      remaining: 0,
     }
   }
 
@@ -336,10 +358,45 @@ async function executeScan(
     informational: informationalCount,
     noise: noiseCount + aiNoiseCount,
     skipped,
-    totalEmails: allEmails.length,
+    totalEmails: totalInWindow,
     newEmails: newEmails.length,
     alreadyScanned: skipped,
     windowFrom: afterDate,
     windowTo,
+    remaining,
   }
+}
+
+/** Which of `ids` this account has already scanned. */
+async function knownMessageIds(accountId: string, ids: string[]): Promise<Set<string>> {
+  const rows = await db.select({ messageId: emailsScanned.messageId })
+    .from(emailsScanned)
+    .where(and(eq(emailsScanned.gmailAccountId, accountId), inArray(emailsScanned.messageId, ids)))
+  return new Set(rows.map((e) => e.messageId))
+}
+
+/**
+ * How many emails in `range` this account has not scanned yet. Reads Gmail ids
+ * only — nothing is fetched in full or classified, so it costs nothing.
+ */
+export async function countUnscanned(
+  gmailAccountId: string,
+  range: { from: Date; to: Date },
+): Promise<{ totalInWindow: number; unscanned: number }> {
+  const [account] = await db.select().from(gmailAccounts).where(eq(gmailAccounts.id, gmailAccountId)).limit(1)
+  if (!account) throw new Error('No Gmail account found for id: ' + gmailAccountId)
+
+  const query = `after:${Math.floor(range.from.getTime() / 1000)} before:${Math.floor(range.to.getTime() / 1000)}`
+  const r = await fetchUnscannedEmails(
+    { accessToken: account.accessToken!, refreshToken: account.refreshToken, tokenExpiry: account.tokenExpiry },
+    query,
+    { maxEmails: 0, filterKnown: (ids) => knownMessageIds(account.id, ids) },
+  )
+  if (r.newAccessToken) {
+    await db.update(gmailAccounts).set({
+      accessToken: r.newAccessToken,
+      tokenExpiry: new Date(Date.now() + 3600 * 1000),
+    }).where(eq(gmailAccounts.id, account.id))
+  }
+  return { totalInWindow: r.totalInWindow, unscanned: r.remaining }
 }

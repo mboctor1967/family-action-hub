@@ -42,7 +42,9 @@ export async function createGmailClient(token: TokenInfo, forceRefresh = false):
       // tell the operator which remedy actually applies. Replacing it with a
       // generic "please reconnect" message sent the operator down a dead end for
       // four months in 2026.
-      console.error('Failed to refresh Gmail token:', err)
+      // Summary only: the raw gaxios error carries the refresh token and client
+      // secret in its request config, and was landing verbatim in Vercel logs. AC-006.
+      console.error('Failed to refresh Gmail token:', describeErrorForLog(err))
       throw err
     }
   }
@@ -57,6 +59,20 @@ export async function createGmailClient(token: TokenInfo, forceRefresh = false):
 function isUnauthorized(err: unknown): boolean {
   const e = (err ?? {}) as { response?: { status?: number }; status?: number }
   return (e.response?.status ?? e.status) === 401
+}
+
+/**
+ * A log-safe one-liner for a googleapis/gaxios error: name, message, HTTP status and
+ * OAuth error code — never the request config, which holds tokens and secrets.
+ */
+export function describeErrorForLog(err: unknown): string {
+  if (!(err instanceof Error)) return typeof err === 'string' ? err : 'non-Error thrown'
+  const e = err as Error & { response?: { status?: number; data?: { error?: unknown } }; code?: unknown }
+  const parts = [`${e.name}: ${e.message}`]
+  if (e.response?.status) parts.push(`status ${e.response.status}`)
+  if (typeof e.response?.data?.error === 'string') parts.push(`oauth ${e.response.data.error}`)
+  if (typeof e.code === 'string' || typeof e.code === 'number') parts.push(`code ${e.code}`)
+  return parts.join(' · ')
 }
 
 export interface EmailMetadata {
@@ -178,4 +194,74 @@ export function preFilterEmails(emails: EmailMetadata[]) {
     }
     return true
   })
+}
+
+/** Hard ceiling on ids listed per scan; a 30-day window of this mailbox is ~1,800. */
+export const LIST_CAP = 2000
+
+/**
+ * Pure selection step of the unscanned-first scan. `ids` is Gmail order (newest
+ * first). Known ids are removed BEFORE the cap is applied — the old scan capped
+ * first, so once more than `max` emails arrived during an outage, the older ones
+ * were never reached. The oldest unscanned go first so a gap closes in order.
+ */
+export function selectUnscanned(ids: string[], known: Set<string>, max: number) {
+  const unscanned = ids.filter((id) => !known.has(id)).reverse()
+  const batch = unscanned.slice(0, max)
+  return {
+    batch,
+    unscannedCount: unscanned.length,
+    alreadyScanned: ids.length - unscanned.length,
+    remaining: unscanned.length - batch.length,
+  }
+}
+
+export async function fetchUnscannedEmails(
+  token: TokenInfo,
+  query: string,
+  opts: { maxEmails: number; filterKnown: (ids: string[]) => Promise<Set<string>>; listCap?: number },
+): Promise<{ emails: EmailMetadata[]; totalInWindow: number; alreadyScanned: number; remaining: number; newAccessToken?: string }> {
+  let { gmail, newAccessToken } = await createGmailClient(token)
+  const cap = opts.listCap ?? LIST_CAP
+
+  const listAll = async () => {
+    const ids: string[] = []
+    let pageToken: string | undefined
+    do {
+      const res = await gmail.users.messages.list({
+        userId: 'me',
+        q: query,
+        maxResults: Math.min(500, cap - ids.length),
+        pageToken,
+      })
+      ids.push(...(res.data.messages ?? []).map((m) => m.id!).filter(Boolean))
+      pageToken = res.data.nextPageToken ?? undefined
+    } while (pageToken && ids.length < cap)
+    return ids
+  }
+
+  let ids: string[]
+  try {
+    ids = await listAll()
+  } catch (err) {
+    // Same single reactive refresh as fetchEmails: a token can look fresh by the
+    // clock yet be rejected. A second 401 surfaces.
+    if (!isUnauthorized(err) || !token.refreshToken) throw err
+    const refreshed = await createGmailClient(token, true)
+    gmail = refreshed.gmail
+    newAccessToken = refreshed.newAccessToken ?? newAccessToken
+    ids = await listAll()
+  }
+
+  const known = ids.length > 0 ? await opts.filterKnown(ids) : new Set<string>()
+  const sel = selectUnscanned(ids, known, opts.maxEmails)
+
+  const emails: EmailMetadata[] = []
+  const batchSize = 20
+  for (let i = 0; i < sel.batch.length; i += batchSize) {
+    const batch = sel.batch.slice(i, i + batchSize)
+    emails.push(...(await Promise.all(batch.map((id) => fetchSingleEmail(gmail, id)))))
+  }
+
+  return { emails, totalInWindow: ids.length, alreadyScanned: sel.alreadyScanned, remaining: sel.remaining, newAccessToken }
 }
