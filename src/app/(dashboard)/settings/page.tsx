@@ -9,7 +9,6 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Mail, CheckCircle2, Plus, Scan, ArrowRight, AlertTriangle, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
-import { AiCostPanel } from '@/components/settings/ai-cost-panel'
 import { WhatsAppDeliveryCard } from '@/components/settings/whatsapp-delivery-card'
 import { MissedEmailsCard } from '@/components/settings/missed-emails-card'
 
@@ -141,9 +140,6 @@ export default function SettingsPage() {
           {gmailAccounts.length > 0 && <MissedEmailsCard />}
         </>
       )}
-
-      {/* Phase F1 — AI cost transparency panel */}
-      {(session?.user as any)?.role === 'admin' && <AiCostPanel />}
 
       {/* Show prominent CTA when Gmail is connected */}
       {gmailAccounts.length > 0 && (

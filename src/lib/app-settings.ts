@@ -45,7 +45,3 @@ export async function isClaudeAtoEnabled(): Promise<boolean> {
   const value = await getSetting<boolean>(CLAUDE_ATO_KEY)
   return value === true
 }
-
-export async function setClaudeAtoEnabled(enabled: boolean, updatedBy?: string): Promise<void> {
-  await setSetting(CLAUDE_ATO_KEY, enabled, updatedBy)
-}

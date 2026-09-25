@@ -138,7 +138,7 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
 - [x] **T-1** [S]: delete `commands.ts`, `formatters.ts` and `parse.ts` with their tests. The webhook's fall-through replies with the digest help text. Update the home "WhatsApp Bot" card copy if it lists the commands · AC-001 · TC-001
 
 ### Wave 2: Settings (`refactor/settings/remove-ai-ato-panel`)
-- [ ] **T-2** [S]: delete `components/settings/ai-cost-panel.tsx` and the `ai-cost-estimate` and `ai-claude-toggle` routes. Remove `isClaudeAtoEnabled`/`setClaudeAtoEnabled` from `lib/app-settings.ts`, **keeping** `getSetting`/`setSetting` (used by the digest since v0.6.0) · AC-002 · TC-002
+- [x] **T-2** [S]: delete `components/settings/ai-cost-panel.tsx` and the `ai-cost-estimate` and `ai-claude-toggle` routes. Remove `setClaudeAtoEnabled` from `lib/app-settings.ts`. `isClaudeAtoEnabled` stays until T-4, because the tax-export bundler still imports it. `getSetting`/`setSetting` stay permanently (used by the digest since v0.6.0) · AC-002 · TC-002
 
 ### Wave 3: Home (`refactor/home-shell/financials-link-card`)
 - [ ] **T-3** [M]: in `app/(dashboard)/page.tsx`, remove the 16 financial queries, the 13 financial cards and the dead Duplicate card. Add one external NavCard to boctor-financials · AC-003 · TC-003
@@ -147,6 +147,7 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
 - [ ] **T-4** [M]: delete:
   - `app/(dashboard)/financials/`, `app/api/financials/`, `components/financials/` and `lib/financials/`
   - `lib/gdrive/`, `lib/assumptions.ts`, `lib/gmail/search.ts` and `types/financials.ts`
+  - `isClaudeAtoEnabled` and its key constant from `lib/app-settings.ts`, now that the bundler is gone
   - the financial one-off scripts: `src/scripts/*` (36) and `scripts/{ai-categorize-unclassified,dedupe-transactions,migrate-txn-fingerprint}.ts`, `scripts/build-phase-f-ato-workbook.py`, `scripts/sever-export-jobs-fk.sql`
   - `test/data/`
 
