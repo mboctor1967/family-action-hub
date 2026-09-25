@@ -129,9 +129,9 @@ async function handleInbound(message: InboundMessage): Promise<NextResponse> {
 
   const body = message.text?.body ?? ''
 
-  // Digest-reply branch — runs before the single-word command router.
+  // Digest-reply branch — runs before the scan command and the help fallback.
   // Detect digest intent by prefix so malformed replies still get the digest
-  // help grammar (not the old spend/balance/recent router).
+  // help grammar rather than the generic help text.
   const looksLikeDigest = /^\s*(task|reject|done|help)\b/i.test(body)
   const snapshot = await getActiveSnapshotForPhone(message.from)
   if (snapshot && looksLikeDigest) {

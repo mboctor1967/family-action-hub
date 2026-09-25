@@ -30,12 +30,24 @@ const HUB_OWNED = [
   'whatsapp_digest_snapshots', 'whatsapp_outbound_messages', 'whatsapp_processed_messages',
 ]
 
+/** True if `src` defines table `name` via pgTable(), whatever quote style is used. */
+function definesTable(src: string, name: string): boolean {
+  return new RegExp(String.raw`pgTable\(\s*['"` + '`' + String.raw`]${name}['"` + '`' + ']').test(src)
+}
+
 describe('hub / boctor-financials boundary', () => {
   const src = readFileSync(join(process.cwd(), 'src/lib/db/schema.ts'), 'utf8')
 
   it('defines none of the tables boctor-financials owns', () => {
-    const defined = MOVED_TO_BOCTOR_FINANCIALS.filter((t) => src.includes(`pgTable('${t}'`))
+    const defined = MOVED_TO_BOCTOR_FINANCIALS.filter((t) => definesTable(src, t))
     expect(defined).toEqual([])
+  })
+
+  it('the definition check sees every quote style', () => {
+    expect(definesTable("pgTable('invoices', {", 'invoices')).toBe(true)
+    expect(definesTable('pgTable("invoices", {', 'invoices')).toBe(true)
+    expect(definesTable('pgTable(`invoices`, {', 'invoices')).toBe(true)
+    expect(definesTable("pgTable('invoices_archive', {", 'invoices')).toBe(false)
   })
 
   it('drizzle-kit is filtered to exactly the hub-owned tables', () => {
