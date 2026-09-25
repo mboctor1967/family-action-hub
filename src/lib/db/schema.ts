@@ -614,3 +614,18 @@ export const whatsappDigestSnapshots = pgTable('whatsapp_digest_snapshots', {
 }, (table) => [
   index('idx_digest_snapshots_recipient').on(table.recipient),
 ])
+
+// WhatsApp outbound message log — one row per send, updated by Meta `statuses`
+// webhooks so a rejected or undelivered message is visible instead of silent.
+export const whatsappOutboundMessages = pgTable('whatsapp_outbound_messages', {
+  id: text('id').primaryKey(), // Meta wamid returned by the send API
+  recipient: text('recipient').notNull(), // E.164
+  kind: text('kind').notNull(), // digest_notice | digest_full | ops_alert | reply
+  status: text('status').notNull().default('accepted'), // accepted | sent | delivered | read | failed
+  errorCode: integer('error_code'),
+  errorTitle: text('error_title'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  statusAt: timestamp('status_at'),
+}, (table) => [
+  index('idx_wa_outbound_recipient_created').on(table.recipient, table.createdAt),
+])
