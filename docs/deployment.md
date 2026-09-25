@@ -16,6 +16,9 @@ Set in Vercel project settings. `.env.local` mirrors them for local development.
 | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | Meta Cloud API. Permanent System User token since 2026-04-20. |
 | `WHATSAPP_ALLOWED_NUMBERS` | Comma-separated E.164 allowlist. |
 | `WHATSAPP_OPS_NUMBER` | **Added v0.4.2.** Recipient for scan-failure alerts. Optional — falls back to the first entry of `WHATSAPP_ALLOWED_NUMBERS`. |
+| `WHATSAPP_TEMPLATE_DIGEST` | **Added v0.6.0.** Name of the approved daily-digest template (`family_hub_digest`). Unset → the old free-form digest, which Meta drops outside the 24 h window. |
+| `WHATSAPP_TEMPLATE_OPS_ALERT` | **Added v0.6.0.** Name of the approved scan-failure template (`family_hub_scan_alert`). Unset → free-form alert (same caveat). |
+| `WHATSAPP_TEMPLATE_LANG` | **Added v0.6.0.** Optional, default `en`. Must match the language the templates were approved in. |
 | `DIGEST_FALLBACK_USER_ID` | Owner for digest replies from users without a hub record. |
 | `BLOB_READ_WRITE_TOKEN`, `GDRIVE_FINANCIALS_FOLDER_ID`, `NOTION_DEDUPE_TOKEN`, `FINANCIAL_PARSE_MODEL` | Per-domain. |
 
@@ -37,6 +40,8 @@ Run this first whenever the digest looks wrong. An account is only `HEALTHY` wit
 
 1. `git revert <commit>` and push — Vercel redeploys automatically.
 2. Schema changes to date are additive and nullable, so a code revert needs no migration rollback.
+3. v0.6.0 only: to fall back to free-form WhatsApp without a redeploy, remove `WHATSAPP_TEMPLATE_DIGEST` / `WHATSAPP_TEMPLATE_OPS_ALERT` in Vercel. `whatsapp_outbound_messages` can stay; nothing depends on it existing.
+4. **Never `drizzle-kit push` against this database.** It is shared with boctor-financials, and `drizzle.config.ts` limits the hub to its own tables via `tablesFilter`.
 
 ## Deploy history
 

@@ -2,9 +2,9 @@
 Feature: WhatsApp delivery reliability
 Date: 2026-09-25
 Tier: MED (score 12 → HIGH recommended; user chose MED)
-Status: SIGNED OFF
+Status: IN PROGRESS (release gate)
 Target release: v0.6.0
-App version at last update: v0.5.0
+App version at last update: v0.6.0
 ---
 
 # WhatsApp delivery reliability
@@ -97,7 +97,8 @@ Root cause: the scan asks Gmail for the **newest 100** emails and drops already-
 - Quick-reply button: `Show digest`
 
 **`family_hub_scan_alert`**
-- Body: `Family Hub Gmail scan failed ({{1}}). Last successful scan: {{2}}. Today's digest was not sent. Fix it here: {{3}}`
+- Body: `Family Hub Gmail scan failed ({{1}}). Last successful scan: {{2}}. Today's digest was not sent. Open {{3}} to fix it.`
+- (Meta rejects a body that ends with a variable, so the link sits mid-sentence.)
 
 ## Schema changes
 ```ts
@@ -162,6 +163,24 @@ One domain per branch, working in the Orca checkout, port 3000.
 ## Cross-domain impact
 WhatsApp, Scan and Settings. The shared schema gains one additive table. New env vars: `WHATSAPP_TEMPLATE_DIGEST`, `WHATSAPP_TEMPLATE_OPS_ALERT`, `WHATSAPP_TEMPLATE_LANG`, plus `WHATSAPP_OPS_NUMBER`, which should now be set.
 
+## Test results (2026-09-25)
+| TC | Result |
+|---|---|
+| TC-001, 002, 003, 004, 005, 006, 009, 011 | PASS (automated; 227/227 suite) |
+| TC-007 | PASS (manual) |
+| TC-009 | PASS (manual) |
+| TC-010 | PASS (manual). Estimate shown; the paid run is deferred to Maged |
+| TC-008 | PENDING. Needs Meta template approval |
+| TC-012 | PENDING. Needs 3 days in production |
+
+**Deviations from plan**
+- The migration used a guarded script, not `drizzle-kit push`, because the database is shared.
+- The backfill range is capped at 30 days, not open-ended: Gmail lists newest first, so a longer range could silently drop its oldest emails at `LIST_CAP`.
+- The estimate moved to `GET /api/scan/backfill/estimate`. The alert template wording changed: Meta rejects a body that ends with a variable.
+
 ## Release notes
 ### User-facing
-- (filled at release)
+The daily WhatsApp digest now arrives every morning, whether or not anyone replied the day before. It comes as a short "your digest is ready" message; tap **Show digest** to see the list, and the `task 1` / `reject 2` replies work as before. If the Gmail scan breaks, you now get a WhatsApp alert that actually arrives. Settings shows whether WhatsApp delivered each message, has a **Send digest now** button, and has a **Scan missed emails** tool that shows the AI cost before it runs. **Reconnect Gmail** now tells you when you need to sign out and in again, instead of pretending it worked.
+
+### Env vars
+Set `WHATSAPP_TEMPLATE_DIGEST=family_hub_digest` and `WHATSAPP_TEMPLATE_OPS_ALERT=family_hub_scan_alert` in Vercel **after** Meta marks both templates Active. Until then, behaviour is unchanged (free-form).

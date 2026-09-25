@@ -10,6 +10,17 @@ Format:
 - Visual: PASS/FAIL (Phase 2 only)
 ```
 
+## 2026-09-25 — feature — WhatsApp delivery reliability (v0.6.0)
+- Automated: 227/227 vitest PASS; `tsc --noEmit` clean; eslint clean on all new files (the 19 pre-existing findings in older files are unchanged)
+- TC-001, TC-002, TC-003, TC-004, TC-005, TC-006, TC-009, TC-011: PASS (automated)
+- TC-007: PASS (manual, Maged, localhost). The WhatsApp Digest card shows both recipients, masked
+- TC-009: PASS (manual). Reconnect Gmail succeeds with a fresh sign-in
+- TC-010: PASS (manual). The estimate for 2026-09-05 → today shows about 850 unscanned at about US$1.06. The paid run is not yet executed
+- TC-008: PENDING. Waits on Meta approval of the templates
+- TC-012: PENDING. Needs 3 consecutive daily digests after release with no replies in between
+- Live read-only check: the estimate against the real mailbox gave 930 in window, 852 unscanned, US$1.06 in 9 chunks
+- Code review: Waves 2, 3 and 4 PASS. Wave 3 first FAILED (2 blockers: unhandled route errors could log tokens; route path differed from the brief); both were fixed and it PASSED on re-review
+
 Types: `manual`, `build`, `schema`, `visual`, `smoke`
 
 ---

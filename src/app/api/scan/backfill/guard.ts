@@ -11,7 +11,7 @@ import { validateRange, clampToNow } from '@/lib/scan/backfill'
 export async function backfillGuard(): Promise<{ error: NextResponse } | { accountId: string }> {
   const session = await auth()
   if (!session?.user?.id) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if ((session.user as any).role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  if ((session.user as { role?: string }).role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   const [account] = await db.select({ id: gmailAccounts.id }).from(gmailAccounts)
     .where(eq(gmailAccounts.userId, session.user.id)).limit(1)
   if (!account) return { error: NextResponse.json({ error: 'No Gmail account connected' }, { status: 404 }) }

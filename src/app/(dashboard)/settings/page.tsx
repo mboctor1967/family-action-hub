@@ -135,7 +135,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {(session?.user as any)?.role === 'admin' && (
+      {(session?.user as { role?: string } | undefined)?.role === 'admin' && (
         <>
           <WhatsAppDeliveryCard />
           {gmailAccounts.length > 0 && <MissedEmailsCard />}

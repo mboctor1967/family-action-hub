@@ -7,6 +7,27 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-09-25** — `fix` — **v0.6.0 — WhatsApp delivery reliability.** The daily digest "worked 1–2 times, then stopped", and 20 days of scan failures produced no alert. The end-to-end review found three independent causes.
+  - **Gmail (no code):** the Google OAuth consent screen was in *Testing*, so every refresh token died after 7 days. The app was published to *In production* (unverified) on 2026-09-25 and Gmail was reconnected.
+  - **WhatsApp:** every outbound message was free-form text, which Meta delivers only within 24 h of the recipient's last message. So the digest arrived only on days after someone replied, and the ops alert was always dropped.
+    - The daily send is now an approved **Utility template** (`family_hub_digest`) with a **Show digest** quick-reply button. Tapping it opens the window, and the full digest follows.
+    - The ops alert is also a template (`family_hub_scan_alert`).
+    - `sendMessage` now throws when Meta rejects a send; it used to log the rejection and report success.
+    - Every send is recorded by wamid in `whatsapp_outbound_messages` and updated from the webhook's `statuses` callbacks. Updates only move forward, since Meta does not guarantee callback order.
+    - The free-form path remains as the fallback until the template env vars are set.
+  - **Scan:** the scan took Gmail's newest 100 and dropped known ids *afterwards*, so a gap longer than ~1.5 days of mail was never reached. 852 of 930 emails from the 5–24 Sep outage were never scanned.
+    - Known ids are now dropped **before** the cap, oldest first, so a gap of up to 7 days self-heals on the next daily run.
+    - An admin backfill API returns a free estimate (Gmail ids only), then runs chunked, resumable scans over a date range of up to 30 days.
+  - **Security:** Gmail refresh failures logged the raw gaxios error, which put the refresh token and client secret into Vercel logs. All scan, cron, backfill and connect paths now log a summary only.
+  - **Settings:**
+    - A **WhatsApp Digest** card shows per-recipient delivery as Meta reported it, with a **Send digest now** button.
+    - A **Scan Missed Emails** card shows the free estimate, then a button that states the AI cost (AI cost transparency).
+    - **Reconnect Gmail** now test-refreshes the token before saving. It used to re-save a revoked token and report success.
+  - **Webhook:** the `scan` command now runs the digest in `after()` instead of an un-awaited fetch, which a serverless function could kill on response.
+  - **Schema:** `whatsapp_outbound_messages`, applied with the idempotent `scripts/apply-whatsapp-outbound-messages.ts`, never `drizzle-kit push`.
+  - **New env vars:** `WHATSAPP_TEMPLATE_DIGEST`, `WHATSAPP_TEMPLATE_OPS_ALERT`, `WHATSAPP_TEMPLATE_LANG` (optional, default `en`).
+  - 227 tests passing (68 new). Refs: `docs/features/2026-09-25-whatsapp-delivery-reliability.md`.
+
 - **2026-08-30** — `fix` — **v0.5.0 — Digest age cap.** The daily WhatsApp digest selected every actionable, unreviewed email ever recorded, with no date bound, so anything left untriaged reappeared in it forever. The first digest after the four-month outage was recovered carried three genuine 2026-04-29/30 emails presented alongside the day's new ones. The digest query is now bounded to the last 7 days on `emails_scanned.date` — deliberately the same window `runScanForAccount` uses, so the digest and the scanner agree on what "current" means rather than holding two definitions. An item still gets seven consecutive morning nudges before it drops out, and ageing out never mutates it: it stays `unreviewed` and visible in triage. The bound is applied in SQL, not after the fetch, because `emails_scanned` grows without limit (785 rows in April 2026 alone).
   - **Ops:** `WHATSAPP_OPS_NUMBER` now set explicitly in Vercel production. It resolves to the same number as the previous fallback, but no longer depends on Maged being first in `WHATSAPP_ALLOWED_NUMBERS` — a reordering would have quietly sent infrastructure alerts to Mandy.
   - **Not a bug, recorded to stop it being rediscovered:** the cron was suspected of firing at 03:01 UTC instead of the configured `0 20 * * *`. It fires at 20:00 UTC exactly as configured. `scan_runs.started_at` is `timestamp` *without* time zone, so the Neon driver renders it in the reading machine's local zone — a 7-hour phantom shift when read from a Pacific-time workstation. Migrating those columns to `timestamptz` is logged as a follow-up.
