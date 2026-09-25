@@ -158,7 +158,7 @@ All waves are gated on "P2 passed". Work in the Orca checkout, port 3000.
 - [x] **T-6** [S]: archive the docs; update `docs/domains/_README.md`, CLAUDE.md and home-shell/settings domain docs · AC-011
 
 ### Wave 5: Schema (`schema/remove-financial-definitions`)
-- [ ] **T-7** [M]: remove the 14 definitions and their relations. Rewrite `boundary.test.ts` to assert none is defined.
+- [x] **T-7** [M]: remove the 14 definitions and their relations. Rewrite `boundary.test.ts` to assert none is defined.
   - Then switch `HUB_TABLES` from a hand-kept list to one **derived from the schema**: `Object.values(schema)` filtered with `is(v, PgTable)`, mapped to `getTableName`. This matches boctor-financials `a240f11`, so a new hub table is protected automatically.
   - Add a test that the filter equals the 18 hub tables. This is only safe after the financial definitions are gone; derived today, it would include them.
   - Verify with `drizzle-kit pull` into scratch.

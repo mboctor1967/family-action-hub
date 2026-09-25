@@ -1,47 +1,51 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import drizzleConfig from '../../../../drizzle.config'
 
 /**
- * AC-005 — no foreign key may cross from the financials cluster to the hub cluster.
- * Guards the extraction boundary at the source level: if someone adds a
- * `references(() => profiles.id)` to a financials table, this fails.
+ * The hub/boctor-financials boundary on the shared Neon database (P3 AC-006).
  *
- * See docs/features/2026-08-31-boctor-financials-extraction.md
+ * boctor-financials owns the financial tables outright (36 tables as of its v0.39.1).
+ * The hub must neither define them nor let drizzle-kit see them: an unfiltered
+ * `drizzle-kit push` from here would offer to drop every table the hub schema does
+ * not define — the family's live financial and tax data.
+ *
+ * See docs/features/2026-09-25-hub-financials-decoupling-p3.md
  */
-const FINANCIALS_TABLES = [
-  'financialCategories', 'financialSubcategories', 'financialEntities',
-  'financialAccounts', 'financialStatements', 'financialTransactions',
-  'transactionSplits', 'financialAssumptions', 'parseErrors', 'atoCodes',
-  'invoiceTags', 'exportJobs', 'invoiceSuppliers', 'invoices',
+
+/** Tables boctor-financials took over from the hub in the extraction. */
+const MOVED_TO_BOCTOR_FINANCIALS = [
+  'financial_categories', 'financial_subcategories', 'financial_entities',
+  'financial_accounts', 'financial_statements', 'financial_transactions',
+  'transaction_splits', 'financial_assumptions', 'parse_errors', 'ato_codes',
+  'invoice_tags', 'export_jobs', 'invoice_suppliers', 'invoices',
 ]
 
-const HUB_TABLES = ['profiles', 'tasks', 'emailsScanned', 'gmailAccounts', 'appSettings']
+/** The hub's own tables. A new hub table must be added here deliberately. */
+const HUB_OWNED = [
+  'accounts', 'ai_feedback', 'ai_skill_versions', 'app_settings', 'comments',
+  'emails_scanned', 'gmail_accounts', 'notion_dedupe_reports', 'profiles',
+  'scan_runs', 'sessions', 'subtasks', 'tasks', 'topics', 'verification_tokens',
+  'whatsapp_digest_snapshots', 'whatsapp_outbound_messages', 'whatsapp_processed_messages',
+]
 
-function blockFor(src: string, table: string): string {
-  const start = src.indexOf(`export const ${table} = pgTable(`)
-  if (start === -1) throw new Error(`table ${table} not found in schema.ts`)
-  const end = src.indexOf('\nexport const ', start + 1)
-  return src.slice(start, end === -1 ? src.length : end)
-}
-
-describe('extraction boundary', () => {
+describe('hub / boctor-financials boundary', () => {
   const src = readFileSync(join(process.cwd(), 'src/lib/db/schema.ts'), 'utf8')
 
-  it('declares every financials table', () => {
-    for (const t of FINANCIALS_TABLES) {
-      expect(src).toContain(`export const ${t} = pgTable(`)
-    }
+  it('defines none of the tables boctor-financials owns', () => {
+    const defined = MOVED_TO_BOCTOR_FINANCIALS.filter((t) => src.includes(`pgTable('${t}'`))
+    expect(defined).toEqual([])
   })
 
-  it('has no financials table referencing a hub table', () => {
-    const violations: string[] = []
-    for (const table of FINANCIALS_TABLES) {
-      const block = blockFor(src, table)
-      for (const hub of HUB_TABLES) {
-        if (block.includes(`=> ${hub}.`)) violations.push(`${table} -> ${hub}`)
-      }
-    }
-    expect(violations).toEqual([])
+  it('drizzle-kit is filtered to exactly the hub-owned tables', () => {
+    const filter = drizzleConfig.tablesFilter
+    expect(Array.isArray(filter)).toBe(true)
+    expect([...(filter as string[])].sort()).toEqual([...HUB_OWNED].sort())
+  })
+
+  it('the filter can never include a boctor-financials table', () => {
+    const filter = drizzleConfig.tablesFilter as string[]
+    expect(filter.filter((t) => MOVED_TO_BOCTOR_FINANCIALS.includes(t))).toEqual([])
   })
 })

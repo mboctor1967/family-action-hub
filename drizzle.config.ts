@@ -1,28 +1,25 @@
 import { defineConfig } from 'drizzle-kit'
+import { is, getTableName } from 'drizzle-orm'
+import { PgTable } from 'drizzle-orm/pg-core'
+import * as schema from './src/lib/db/schema'
 
 /**
- * The Neon database is shared with boctor-financials, which owns the financial_*,
- * bf_*, property_* and asset_* tables. drizzle-kit treats every table it can see
- * but the schema does not define as one to drop, so without this list a `push`
- * from here would propose dropping the other app's tables — and columns it added,
- * such as financial_transactions.property_id.
+ * The Neon database is shared with boctor-financials, which owns 36 tables there
+ * (financial_*, transaction_splits, invoices, bf_*, property_*, asset_*, vehicles,
+ * wfh_days, receipts and more). drizzle-kit treats every table it can see but the
+ * schema does not define as one to drop, so an unfiltered `push` from here would
+ * offer to drop all of them — the family's live financial and tax data.
  *
- * Only hub-owned tables are listed. The 14 financial tables are deliberately left
- * out even though src/lib/db/schema.ts still defines them until the P3 cleanup:
- * they belong to boctor-financials now (docs/features/2026-08-31-boctor-financials-extraction.md).
- * Until P3, a `push` from here will fail trying to re-create them — which is the
- * safe failure. Production changes go through guarded SQL scripts in scripts/.
+ * The filter is derived from the hub schema, so a new hub table is covered the
+ * moment it is defined. boundary.test.ts pins it to the 18 hub tables and fails if
+ * a boctor-financials table ever appears in it. Production changes still go
+ * through guarded SQL scripts in scripts/.
  *
- * NEVER remove tablesFilter. NEVER add a boctor-financials table to HUB_TABLES.
- * The two apps share one Neon instance and boctor-financials owns 36 tables here;
- * this filter is the only guard against a hub push offering to drop them.
+ * NEVER remove tablesFilter. NEVER add a boctor-financials table to the hub schema.
  */
-const HUB_TABLES = [
-  'profiles', 'accounts', 'sessions', 'verification_tokens', 'app_settings',
-  'gmail_accounts', 'topics', 'emails_scanned', 'tasks', 'comments', 'subtasks',
-  'ai_feedback', 'ai_skill_versions', 'scan_runs', 'notion_dedupe_reports',
-  'whatsapp_processed_messages', 'whatsapp_digest_snapshots', 'whatsapp_outbound_messages',
-]
+const HUB_TABLES = (Object.values(schema) as unknown[])
+  .filter((v): v is PgTable => is(v, PgTable))
+  .map((t) => getTableName(t))
 
 export default defineConfig({
   schema: './src/lib/db/schema.ts',
