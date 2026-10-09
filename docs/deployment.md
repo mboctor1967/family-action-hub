@@ -46,6 +46,45 @@ Run this first whenever the digest looks wrong. An account is only `HEALTHY` wit
 
 ## Deploy history
 
+### 2026-10-10 — v0.8.0 — Digest delivery channel: WhatsApp, email, or both
+
+- **Deployment:** `dpl_D5CmUmVZLW3RNFkttHAqrAidvG3z`, commit `7b2efde`, tag `v0.8.0`. READY, production, aliased to `family-action-hub.vercel.app`.
+- **Schema / data:** none. `digest_channel` is a key in the existing `app_settings` table.
+- **Why:** no digest arrived between 4 and 10 October. The scan completed every day — 57 emails and 2 actionable on the 9th — but Meta rejected every send with `131047 Re-engagement message`. The one delivery on 3 Oct succeeded only because an inbound message had opened the 24-hour window that day.
+
+**Smoke tests**
+
+| # | Test | Result |
+|---|---|---|
+| 1 | `/login` renders | **PASS** — HTTP 200 |
+| 2 | `/` and `/settings` redirect unauthenticated traffic | **PASS** — 307 each |
+| 3 | `GET /api/settings/digest-channel` requires auth | **PASS** — 401 `{"error":"Unauthorized"}` |
+| 4 | `PUT /api/settings/digest-channel` requires auth | **PASS** — 401 |
+| 5 | `/api/cron/digest` still guarded | **PASS** — 401 |
+
+**⚠️ Required before the first email can send.** The stored Gmail grant is still
+`gmail.readonly`; `auth.ts` now also requests `gmail.send`, but a scope change only takes
+effect on a fresh consent. **Sign out → sign in → Settings → Reconnect Gmail.** Until that
+is done, an email attempt fails with `GmailScopeError`, which states this remedy in its
+message. The same re-sign-in was already owed for P3 AC-007 (the Drive scope was dropped
+when financials left), so it is one trip, not two.
+
+**Still blocked outside this repo — WhatsApp.** Diagnosed 2026-10-10 against Meta with the
+production token:
+
+- the production number is still Meta's sandbox: `+1 555-637-6549`, verified_name
+  `Test Number`, `code_verification_status: NOT_VERIFIED`
+- the `Familyhubbot` System User has **no WhatsApp Business Account assigned**
+  (`assigned_whatsapp_business_accounts: []`), so there is nowhere for templates to live
+- `WHATSAPP_TEMPLATE_DIGEST`, `WHATSAPP_TEMPLATE_OPS_ALERT` and `WHATSAPP_TEMPLATE_LANG`
+  are unset in production
+
+Until a WABA exists with approved `family_hub_digest` (2 body vars + 1 quick-reply button)
+and `family_hub_scan_alert` (3 body vars), WhatsApp keeps failing with 131047 and the
+channel setting should stay on `both` or `email`. Setting the three env vars is the only
+code-side step remaining, and takes minutes once the templates are approved.
+
+
 ### 2026-09-25 — v0.7.0 — Financials removed from the hub (P3)
 
 - **Deployment:** `dpl_J1GCzNVjkYN18yBPNPaq2eurRv46`, commit `bdab5a2`, tag `v0.7.0`. READY in about 42 s and aliased to `family-action-hub.vercel.app`.
