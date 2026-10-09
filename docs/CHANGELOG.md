@@ -7,6 +7,12 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `schema`
 
 ## Unreleased
 
+- **2026-10-10** — `feat` — **v0.8.0 — Digest delivery channel: WhatsApp, email, or both.** No digest arrived between 4 and 10 October. The scan was never at fault — it completed every day, 57 emails and 2 actionable on the 9th — but Meta rejected every send with `131047 Re-engagement message`, because a free-form WhatsApp message is only delivered inside the 24-hour customer-service window and the hub has no approved template. The single delivery on 3 October succeeded only because an inbound message had opened the window that day. The scan-failure alert uses the same path, so nothing warned anyone.
+  - **Email channel:** sends through the already-connected Gmail account via `gmail.users.messages.send`. Deliberately **not** a new email provider — the standing rule is to raise shared messaging before wiring one, and widening an existing grant adds no provider, credential or cost. Requires `gmail.send`, so a sign-out/sign-in **and** Reconnect Gmail are needed before the first email can go.
+  - **Channel setting** in `app_settings` (`digest_channel`), changeable on Settings without a deploy. Defaults to `both`: email works now, WhatsApp resumes by itself once its templates are approved.
+  - **Channels are independent.** A WhatsApp rejection — the current steady state — cannot stop the email. Covered by TC-009, which simulates the exact 131047 production failure.
+  - 252 tests passing (27 new). Refs: `docs/features/2026-10-10-digest-channel-email.md`.
+
 - **2026-09-25** — `refactor` — **v0.7.0 — Financials removed from the hub (P3).** The financial domain moved to the separate **boctor-financials** app in P0–P2; the hub still carried a full, stale copy that could edit the same live tables. That copy is now gone.
   - **Removed:** 153 files and about 21,500 lines:
     - financial pages, 43 API routes, components and lib;

@@ -7,6 +7,8 @@ import { sendOpsAlert, type ScanFailureReport } from '@/lib/whatsapp/ops-alert'
 import { sendTemplate } from '@/lib/whatsapp/client'
 import { loadDigestItems, digestCutoff } from '@/lib/whatsapp/digest-items'
 import { getSetting, setSetting } from '@/lib/app-settings'
+import { getDigestChannel, wantsEmail, wantsWhatsApp, type DigestChannel } from '@/lib/digest/channel'
+import { sendDigestEmail } from '@/lib/email/send-digest-email'
 import type { DigestStats } from '@/lib/whatsapp/digest-format'
 import { APP_LOCALE, APP_TIMEZONE } from '@/lib/constants'
 
@@ -28,12 +30,20 @@ export const DIGEST_BUTTON_PAYLOAD = 'SHOW_DIGEST'
 export const LAST_DIGEST_STATS_KEY = 'whatsapp_last_digest_stats'
 
 export type DailyDigestResult = {
+  /** WhatsApp sends that Meta accepted. */
   sent: number
+  /** WhatsApp sends that failed. */
   failed: number
   skipped: number
   scanErrors?: number
   suppressed?: boolean
   reason?: string
+  /** Which channels were attempted. Absent when the digest was suppressed. */
+  channel?: DigestChannel
+  /** Email recipients the digest reached. */
+  emailSent?: number
+  /** Email recipients it failed to reach. */
+  emailFailed?: number
 }
 
 const dateFmt = new Intl.DateTimeFormat(APP_LOCALE, {
@@ -114,33 +124,57 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     console.error('[daily-digest] failed to store digest stats', err instanceof Error ? err.message : err)
   }
 
-  const template = process.env.WHATSAPP_TEMPLATE_DIGEST?.trim()
+  // Which channels to deliver on. Added 2026-10-10: WhatsApp had delivered nothing
+  // since 4 Oct (Meta 131047, no approved template), so the digest needed a second
+  // route. The channels are attempted independently — a WhatsApp rejection, which is
+  // the current steady state, must never stop the email going out. AC-004.
+  const channel = await getDigestChannel()
 
   let sent = 0
   let failed = 0
-  for (const recipient of recipients) {
-    try {
-      if (template) {
-        await sendTemplate({
-          to: recipient,
-          name: template,
-          bodyParams: [dateLabel, String(items.length)],
-          quickReplyPayload: DIGEST_BUTTON_PAYLOAD,
-          kind: 'digest_notice',
-        })
-      } else {
-        // No approved template configured yet: the old free-form path. Delivered
-        // only inside the 24h window — kept so a deploy before approval is no worse.
-        await sendDigest({ recipient, items, dateLabel, stats })
+  let emailSent = 0
+  let emailFailed = 0
+
+  if (wantsWhatsApp(channel)) {
+    const template = process.env.WHATSAPP_TEMPLATE_DIGEST?.trim()
+    for (const recipient of recipients) {
+      try {
+        if (template) {
+          await sendTemplate({
+            to: recipient,
+            name: template,
+            bodyParams: [dateLabel, String(items.length)],
+            quickReplyPayload: DIGEST_BUTTON_PAYLOAD,
+            kind: 'digest_notice',
+          })
+        } else {
+          // No approved template configured yet: the old free-form path. Delivered
+          // only inside the 24h window — kept so a deploy before approval is no worse.
+          await sendDigest({ recipient, items, dateLabel, stats })
+        }
+        sent++
+      } catch (err) {
+        console.error('[daily-digest] send failed for', recipient, err instanceof Error ? err.message : err)
+        failed++
       }
-      sent++
-    } catch (err) {
-      console.error('[daily-digest] send failed for', recipient, err instanceof Error ? err.message : err)
-      failed++
     }
   }
 
-  return { sent, failed, skipped: 0, scanErrors, suppressed: false }
+  if (wantsEmail(channel)) {
+    // Wrapped as well as returning a result: an unexpected throw here must not lose a
+    // WhatsApp send that already succeeded above.
+    try {
+      const res = await sendDigestEmail(items, { dateLabel, stats })
+      emailSent = res.sent
+      emailFailed = res.failed
+      if (res.reason) console.error('[daily-digest] email:', res.reason)
+    } catch (err) {
+      console.error('[daily-digest] email send threw', err instanceof Error ? err.message : err)
+      emailFailed = 1
+    }
+  }
+
+  return { sent, failed, skipped: 0, scanErrors, suppressed: false, channel, emailSent, emailFailed }
 }
 
 /** Full digest, sent when a recipient taps "Show digest" — i.e. inside the 24h window. */

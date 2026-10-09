@@ -18,7 +18,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly',
+          // gmail.send added 2026-10-10 for the email digest channel. Widening the existing
+          // grant rather than adding an email provider - see DEC-1 in
+          // docs/features/2026-10-10-digest-channel-email.md. Takes effect only after a
+          // sign-out/sign-in AND Reconnect Gmail, which copies it into gmail_accounts.
+          scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
           access_type: 'offline',
           prompt: 'consent',
         },

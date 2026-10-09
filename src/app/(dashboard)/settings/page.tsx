@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { WhatsAppDeliveryCard } from '@/components/settings/whatsapp-delivery-card'
 import { MissedEmailsCard } from '@/components/settings/missed-emails-card'
+import { DigestChannelCard } from '@/components/settings/digest-channel-card'
 
 /** Relative age of the last successful scan — "never" is a first-class answer. */
 function formatLastScan(value: string | null): string {
@@ -136,6 +137,7 @@ export default function SettingsPage() {
 
       {(session?.user as { role?: string } | undefined)?.role === 'admin' && (
         <>
+          <DigestChannelCard />
           <WhatsAppDeliveryCard />
           {gmailAccounts.length > 0 && <MissedEmailsCard />}
         </>
