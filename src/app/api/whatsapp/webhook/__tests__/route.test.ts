@@ -62,7 +62,7 @@ beforeEach(() => {
   h.sendFullDigest.mockResolvedValue(undefined)
   h.applyStatusUpdate.mockResolvedValue(undefined)
   h.sendMessage.mockResolvedValue('wamid.r')
-  h.runDailyDigest.mockResolvedValue({ sent: 2, failed: 0, skipped: 0 })
+  h.runDailyDigest.mockResolvedValue({ whatsappAccepted: 2, whatsappRejected: 0, skipped: 0 })
 })
 
 describe('Show digest button (AC-002)', () => {

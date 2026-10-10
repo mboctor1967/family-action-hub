@@ -59,7 +59,7 @@ describe('runDailyDigest (AC-001)', () => {
   it('TC-001 — sends the digest template with date, count and Show-digest payload to every recipient', async () => {
     const res = await runDailyDigest()
 
-    expect(res).toMatchObject({ sent: 2, failed: 0, suppressed: false, scanErrors: 0 })
+    expect(res).toMatchObject({ whatsappAccepted: 2, whatsappRejected: 0, suppressed: false, scanErrors: 0 })
     expect(h.sendTemplate).toHaveBeenCalledTimes(2)
     const args = h.sendTemplate.mock.calls[0][0]
     expect(args).toMatchObject({
@@ -81,10 +81,24 @@ describe('runDailyDigest (AC-001)', () => {
     }))
   })
 
-  it('counts a rejected template send as failed, not sent (AC-004)', async () => {
+  it('counts a refused template send as rejected, not accepted (AC-004)', async () => {
     h.sendTemplate.mockResolvedValueOnce('wamid.1').mockRejectedValueOnce(new Error('131026'))
     const res = await runDailyDigest()
-    expect(res).toMatchObject({ sent: 1, failed: 1 })
+    expect(res).toMatchObject({ whatsappAccepted: 1, whatsappRejected: 1 })
+  })
+
+  /*
+   * The counters say ACCEPTED, not sent, and the distinction is not pedantry: Meta
+   * answers the API with 200 and a wamid, then rejects asynchronously by webhook. On
+   * 2026-10-10 a real run reported two accepted and zero failed while both messages
+   * were rejected with 131047 seconds later. Anyone reading the old `sent` would have
+   * concluded the digest worked.
+   */
+  it('reports acceptance, never delivery', async () => {
+    const res = await runDailyDigest()
+    expect(res).toHaveProperty('whatsappAccepted')
+    expect(res).not.toHaveProperty('sent')
+    expect(res).not.toHaveProperty('failed')
   })
 
   it('falls back to the free-form digest when no template is configured', async () => {
@@ -92,13 +106,13 @@ describe('runDailyDigest (AC-001)', () => {
     const res = await runDailyDigest()
     expect(h.sendTemplate).not.toHaveBeenCalled()
     expect(h.sendDigest).toHaveBeenCalledTimes(2)
-    expect(res.sent).toBe(2)
+    expect(res.whatsappAccepted).toBe(2)
   })
 
   it('suppresses the digest and alerts the operator when every scan fails', async () => {
     h.runScanForAccount.mockRejectedValue(Object.assign(new Error('invalid_grant'), { response: { data: { error: 'invalid_grant' } } }))
     const res = await runDailyDigest()
-    expect(res).toMatchObject({ sent: 0, suppressed: true, scanErrors: 1 })
+    expect(res).toMatchObject({ whatsappAccepted: 0, suppressed: true, scanErrors: 1 })
     expect(h.sendOpsAlert).toHaveBeenCalledTimes(1)
     expect(h.sendTemplate).not.toHaveBeenCalled()
   })
@@ -106,7 +120,7 @@ describe('runDailyDigest (AC-001)', () => {
   it('returns skipped when there are no recipients', async () => {
     process.env.WHATSAPP_ALLOWED_NUMBERS = ''
     const res = await runDailyDigest()
-    expect(res).toMatchObject({ sent: 0, skipped: 1 })
+    expect(res).toMatchObject({ whatsappAccepted: 0, skipped: 1 })
   })
 })
 

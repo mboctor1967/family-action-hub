@@ -100,8 +100,8 @@ describe('GET /api/cron/digest', () => {
     const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
     expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data.sent).toBeGreaterThanOrEqual(1)
-    expect(data.sent).toBeLessThanOrEqual(2) // max 2 recipients in allowlist
+    expect(data.whatsappAccepted).toBeGreaterThanOrEqual(1)
+    expect(data.whatsappAccepted).toBeLessThanOrEqual(2) // max 2 recipients in allowlist
     expect(sendDigest).toHaveBeenCalled()
   })
 
@@ -133,7 +133,7 @@ describe('GET /api/cron/digest', () => {
 
     expect(res.status).toBe(200)
     expect(sendDigest).not.toHaveBeenCalled()
-    expect(data.sent).toBe(0)
+    expect(data.whatsappAccepted).toBe(0)
     expect(data.suppressed).toBe(true)
     expect(data.scanErrors).toBe(1)
 
@@ -170,7 +170,7 @@ describe('GET /api/cron/digest', () => {
     const res = await GET(makeReq({ authorization: 'Bearer test-secret' }))
     const data = await res.json()
 
-    expect(data.sent).toBe(2)
+    expect(data.whatsappAccepted).toBe(2)
     expect(data.suppressed).toBe(false)
     expect(sendDigest).toHaveBeenCalledTimes(2)
     expect(sendOpsAlert).not.toHaveBeenCalled()
@@ -217,7 +217,7 @@ describe('GET /api/cron/digest', () => {
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.skipped).toBe(1)
-    expect(data.sent).toBe(0)
+    expect(data.whatsappAccepted).toBe(0)
   })
 
   /**

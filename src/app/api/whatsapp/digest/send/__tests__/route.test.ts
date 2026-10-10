@@ -10,7 +10,7 @@ import { POST } from '../route'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  h.runDailyDigest.mockResolvedValue({ sent: 2, failed: 0, skipped: 0, scanErrors: 0, suppressed: false })
+  h.runDailyDigest.mockResolvedValue({ whatsappAccepted: 2, whatsappRejected: 0, skipped: 0, scanErrors: 0, suppressed: false })
 })
 
 describe('POST /api/whatsapp/digest/send', () => {
@@ -30,7 +30,7 @@ describe('POST /api/whatsapp/digest/send', () => {
     h.auth.mockResolvedValue({ user: { id: 'u', role: 'admin' } })
     const res = await POST()
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ sent: 2, failed: 0 })
+    expect(await res.json()).toMatchObject({ whatsappAccepted: 2, whatsappRejected: 0 })
     expect(h.runDailyDigest).toHaveBeenCalledTimes(1)
   })
 })

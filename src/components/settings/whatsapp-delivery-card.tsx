@@ -64,10 +64,20 @@ export function WhatsAppDeliveryCard() {
         toast.error(data.error || 'Digest send failed')
       } else if (data.suppressed) {
         toast.error('Gmail scan failed, so no digest was sent. See Gmail Accounts above.')
-      } else if (data.failed > 0) {
-        toast.error(`Sent ${data.sent}, failed ${data.failed}`)
       } else {
-        toast.success(`Digest sent to ${data.sent} recipient${data.sent === 1 ? '' : 's'}`)
+        // "Accepted", not "sent". Meta answers the API with 200 and a wamid, then
+        // rejects asynchronously by webhook — so a success toast here would have
+        // claimed delivery on every one of the nights nothing actually arrived. The
+        // delivery badges below are the truth, and loadHealth refreshes them in 5s.
+        const parts: string[] = []
+        if (data.whatsappRejected > 0) parts.push(`${data.whatsappRejected} refused`)
+        if (data.whatsappAccepted > 0) parts.push(`WhatsApp: ${data.whatsappAccepted} accepted, awaiting delivery`)
+        if (data.emailSent > 0) parts.push(`email: ${data.emailSent} sent`)
+        if (data.emailFailed > 0) parts.push(`email: ${data.emailFailed} failed`)
+
+        const message = parts.length > 0 ? parts.join(' · ') : 'Nothing to send'
+        if (data.whatsappRejected > 0 || data.emailFailed > 0) toast.error(message)
+        else toast.success(message)
       }
     } catch {
       toast.error('Could not reach the hub. Check your connection.')

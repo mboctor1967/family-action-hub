@@ -30,10 +30,18 @@ export const DIGEST_BUTTON_PAYLOAD = 'SHOW_DIGEST'
 export const LAST_DIGEST_STATS_KEY = 'whatsapp_last_digest_stats'
 
 export type DailyDigestResult = {
-  /** WhatsApp sends that Meta accepted. */
-  sent: number
-  /** WhatsApp sends that failed. */
-  failed: number
+  /**
+   * WhatsApp messages Meta's API ACCEPTED (HTTP 200 with a wamid).
+   *
+   * Deliberately not called `sent`: acceptance is not delivery. Meta returns 200 and
+   * then rejects asynchronously by webhook — on 2026-10-10 a run reported
+   * `sent: 2, failed: 0` while both messages were being rejected with 131047 seconds
+   * later. Delivery truth lives in `whatsapp_outbound_messages`; read it with
+   * `getDeliveryHealth()`.
+   */
+  whatsappAccepted: number
+  /** WhatsApp sends the API refused outright (not the later webhook rejection). */
+  whatsappRejected: number
   skipped: number
   scanErrors?: number
   suppressed?: boolean
@@ -69,7 +77,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
   // Recipients come from the WhatsApp allowlist (E.164 format, including +).
   const recipients = digestRecipients()
   if (recipients.length === 0) {
-    return { sent: 0, failed: 0, skipped: 1, reason: 'no recipients' }
+    return { whatsappAccepted: 0, whatsappRejected: 0, skipped: 1, reason: 'no recipients' }
   }
 
   // Run one fresh scan per Gmail account (recipients share the scanned mailbox).
@@ -105,8 +113,8 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
   // operator has been alerted instead.
   if (accounts.length > 0 && scanResults.length === 0) {
     return {
-      sent: 0,
-      failed: 0,
+      whatsappAccepted: 0,
+      whatsappRejected: 0,
       skipped: 0,
       scanErrors,
       suppressed: true,
@@ -130,8 +138,8 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
   // the current steady state, must never stop the email going out. AC-004.
   const channel = await getDigestChannel()
 
-  let sent = 0
-  let failed = 0
+  let whatsappAccepted = 0
+  let whatsappRejected = 0
   let emailSent = 0
   let emailFailed = 0
 
@@ -152,10 +160,10 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
           // only inside the 24h window — kept so a deploy before approval is no worse.
           await sendDigest({ recipient, items, dateLabel, stats })
         }
-        sent++
+        whatsappAccepted++
       } catch (err) {
         console.error('[daily-digest] send failed for', recipient, err instanceof Error ? err.message : err)
-        failed++
+        whatsappRejected++
       }
     }
   }
@@ -174,7 +182,7 @@ export async function runDailyDigest(): Promise<DailyDigestResult> {
     }
   }
 
-  return { sent, failed, skipped: 0, scanErrors, suppressed: false, channel, emailSent, emailFailed }
+  return { whatsappAccepted, whatsappRejected, skipped: 0, scanErrors, suppressed: false, channel, emailSent, emailFailed }
 }
 
 /** Full digest, sent when a recipient taps "Show digest" — i.e. inside the 24h window. */

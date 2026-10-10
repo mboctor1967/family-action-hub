@@ -64,7 +64,7 @@ describe('digest channel routing', () => {
     expect(h.sendTemplate).not.toHaveBeenCalled()
     expect(h.sendDigestEmail).toHaveBeenCalledTimes(1)
     expect(res.emailSent).toBe(1)
-    expect(res.sent).toBe(0)
+    expect(res.whatsappAccepted).toBe(0)
   })
 
   it('TC-008 / AC-003 — whatsapp only: no email is sent', async () => {
@@ -72,7 +72,7 @@ describe('digest channel routing', () => {
     const res = await runDailyDigest()
     expect(h.sendDigestEmail).not.toHaveBeenCalled()
     expect(h.sendDigest).toHaveBeenCalledTimes(1)
-    expect(res.sent).toBe(1)
+    expect(res.whatsappAccepted).toBe(1)
     expect(res.emailSent ?? 0).toBe(0)
   })
 
@@ -83,7 +83,7 @@ describe('digest channel routing', () => {
 
     const res = await runDailyDigest()
 
-    expect(res.failed).toBe(1)        // WhatsApp failed, as it does every night
+    expect(res.whatsappRejected).toBe(1)   // WhatsApp refused, as it is every night
     expect(res.emailSent).toBe(1)     // and the digest still arrived
     expect(h.sendDigestEmail).toHaveBeenCalledTimes(1)
   })
@@ -94,7 +94,7 @@ describe('digest channel routing', () => {
 
     const res = await runDailyDigest()
 
-    expect(res.sent).toBe(1)
+    expect(res.whatsappAccepted).toBe(1)
     expect(res.emailFailed).toBe(1)
   })
 
