@@ -57,6 +57,7 @@ The sender is Meta's test number with no Business Account, so every send is reje
 - Status: ready
 - Priority: P2
 - Size: S
+- Needs: H-001
 
 Pending after the financials decoupling: boctor-financials baseline checks, re-sign-in and Reconnect Gmail, and a bf Inbox preview.
 
@@ -233,7 +234,7 @@ Backfilled (D18): delivered 2026-10 before the backlog existed. v0.8.0 email cha
 ### H-001 · Sign out and in, then Reconnect Gmail in the hub (for the email digest)
 - Who: maged
 - By: Nov 2026
-- Unblocks: B-004
+- Unblocks: B-004, B-006
 - Status: open
 
 ### H-002 · Set up WhatsApp Business Account in Meta and get two digest templates approved
