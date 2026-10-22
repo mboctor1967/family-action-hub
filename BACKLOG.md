@@ -1,11 +1,11 @@
 # Backlog · Family Action Hub
 <!-- std-backlog v2 · read by master-project; ids never reused -->
 
-
 - Status: Active. Only checkout at orca (stale Claude copy archived 19 Oct); feat/whatsapp-bot on GitHub.
 - Next step: Decide merge/drop of archive/feat-notion-dedupe.
 - As of: 20 Oct 2026
 - Planned end: 31 Mar 2027
+
 Started 20 Oct 2026 from the master register (next step, task t-003, AI Apps page). The project's own sessions add to it (skill std-backlog).
 
 ## Build backlog
